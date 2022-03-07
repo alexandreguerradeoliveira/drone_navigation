@@ -207,13 +207,13 @@ class NavigationNode {
 
             /// Initialize kalman parameters
             // sensor covarience matrices
-            R_baro(0,0) = 5.0;
+            R_baro(0,0) = 0.1;
 
             R_gps.setIdentity();
             R_gps = R_gps*3;
 
             R_mag.setIdentity();
-            R_mag = R_mag*0.01;
+            R_mag = R_mag*0.2;
 
             P.setZero(); // no error in the initial state
 
@@ -454,7 +454,17 @@ class NavigationNode {
                 Xnext = X + (k1 + 2 * k2 + 2 * k3 + k4) * dT / 6;
                 Pnext = P + (k1_P + 2 * k2_P + 2 * k3_P + k4_P) * dT / 6;
 
-                //std::cout << P << std::endl<< std::endl;
+
+                // jenky stuff for the time beeing
+                Matrix<double,3,1>omega_b;
+                Eigen::Quaternion<double> attitude(X(9), X(6), X(7), X(8));
+                attitude.normalize();
+                Eigen::Matrix<double, 3, 3> rot_matrix = attitude.toRotationMatrix();
+                omega_b <<rocket_sensor.IMU_gyro.x-X(14), rocket_sensor.IMU_gyro.y-X(15), rocket_sensor.IMU_gyro.z-X(16);
+                Xnext.segment(10,3) = rot_matrix*omega_b;
+
+
+            //std::cout << P << std::endl<< std::endl;
         }
 
 		void predict_step()
@@ -607,6 +617,7 @@ class NavigationNode {
 			rocket_state.twist.angular.x = X(10);
 			rocket_state.twist.angular.y = X(11);
 			rocket_state.twist.angular.z = X(12);
+            //std::cout<< X(10) << std::endl<< std::endl;
 
 			rocket_state.propeller_mass = X(13);
 
@@ -615,8 +626,9 @@ class NavigationNode {
             real_time_simulator::StateCovariance state_covariance;
 
             //std::vector<Vector3d> P_vec(NX*NX);
-            //Matrix<double,3,Dynamic>::Map(P_vec.data().data(),3,10) = P_vec;
-            std::vector<double> P_vec(P.data(), P.data() + NX * NX);
+            Matrix<double,NX,1> P_diag;
+            P_diag = P.diagonal();
+            std::vector<double> P_vec(P_diag.data(), P_diag.data() + NX);
             state_covariance.covariance = P_vec;
             cov_pub.publish(state_covariance);
 
