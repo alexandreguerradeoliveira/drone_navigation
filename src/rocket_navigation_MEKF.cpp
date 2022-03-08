@@ -23,6 +23,8 @@
 #include "real_time_simulator/State.h"
 #include "real_time_simulator/Control.h"
 #include "real_time_simulator/Sensor.h"
+#include "real_time_simulator/StateCovariance.h"
+
 
 #include "geometry_msgs/Vector3.h"
 
@@ -113,8 +115,10 @@ class NavigationNode {
 	
 		// List of subscribers and publishers
 		ros::Publisher nav_pub;
+        ros::Publisher cov_pub;
 
-		ros::Subscriber fsm_sub;
+
+    ros::Subscriber fsm_sub;
 		ros::Subscriber control_sub;
 		ros::Subscriber rocket_state_sub;
 		ros::Subscriber sensor_sub;
@@ -189,6 +193,9 @@ class NavigationNode {
 		{
 			// Create filtered rocket state publisher
 			nav_pub = nh.advertise<real_time_simulator::State>("kalman_rocket_state", 10);
+
+            // Create state covarience publisher
+            cov_pub = nh.advertise<real_time_simulator::StateCovariance>("state_covariance", 10);
 
 			// Subscribe to time_keeper for fsm and time
 			fsm_sub = nh.subscribe("gnc_fsm_pub", 1, &NavigationNode::fsmCallback, this);
@@ -597,6 +604,16 @@ class NavigationNode {
 			rocket_state.propeller_mass = X(13);
 
 			nav_pub.publish(rocket_state);
+
+            real_time_simulator::StateCovariance state_covariance;
+
+            //std::vector<Vector3d> P_vec(NX*NX);
+            const int NX = 22;
+            Eigen::Matrix<double,NX,1> P_diag;
+            P_diag = P.diagonal();
+            std::vector<double> P_vec(P_diag.data(), P_diag.data() + NX);
+            state_covariance.covariance = P_vec;
+            cov_pub.publish(state_covariance);
 
 		}
 };
