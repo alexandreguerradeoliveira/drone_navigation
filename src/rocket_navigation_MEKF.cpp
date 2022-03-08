@@ -183,8 +183,7 @@ class NavigationNode {
 			R_gps(5,5) = 3*3;
 
 
-			
-		}
+        }
 
 		void initTopics(ros::NodeHandle &nh) 
 		{
