@@ -210,7 +210,7 @@ class NavigationNode {
             R_baro(0,0) = 0.1;
 
             R_gps.setIdentity();
-            R_gps = R_gps*3;
+            R_gps = R_gps*9;
 
             R_mag.setIdentity();
             R_mag = R_mag*0.2;

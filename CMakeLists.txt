@@ -239,8 +239,12 @@ add_executable(rocket_guidance src/rocket_guidance.cpp)
 target_link_libraries(rocket_guidance ${catkin_LIBRARIES})
 add_dependencies(rocket_guidance ${${PROJECT_NAME}_EXPORTED_TARGETS})
 
-add_executable(rocket_navigation src/rocket_navigation.cpp)
-target_link_libraries(rocket_navigation ${catkin_LIBRARIES})
-add_dependencies(rocket_navigation ${${PROJECT_NAME}_EXPORTED_TARGETS})
+add_executable(rocket_navigation_ekf src/rocket_navigation_EKF.cpp)
+target_link_libraries(rocket_navigation_ekf ${catkin_LIBRARIES})
+add_dependencies(rocket_navigation_ekf ${${PROJECT_NAME}_EXPORTED_TARGETS})
+
+add_executable(rocket_navigation_mekf src/rocket_navigation_MEKF.cpp)
+target_link_libraries(rocket_navigation_mekf ${catkin_LIBRARIES})
+add_dependencies(rocket_navigation_mekf ${${PROJECT_NAME}_EXPORTED_TARGETS})
 
 

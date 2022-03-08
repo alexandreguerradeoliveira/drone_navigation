@@ -23,7 +23,7 @@
 ''
 
   <node name="rocket_control" pkg="rocket_gnc" type="rocket_control" output ="screen"/>
-  <node name="rocket_navigation_ekf" pkg="rocket_gnc" type="rocket_navigation_ekf" output ="screen"/>
+  <node name="rocket_navigation_mekf" pkg="rocket_gnc" type="rocket_navigation_mekf" output ="screen"/>
   <node name="rocket_guidance" pkg="rocket_gnc" type="rocket_guidance" output ="screen"/>
   <node name="rocket_fsm" pkg="rocket_gnc" type="rocket_fsm" output ="screen"/>
   <node name="av_interface" pkg="rocket_gnc" type="av_interface.py" output ="screen"/>
