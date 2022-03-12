@@ -168,15 +168,15 @@ class NavigationNode {
 
 			Q.block(3,3,3,3) = Eigen::Matrix<double, 3, 3>::Identity(3, 3)*0.05;
 			
-			Q.block(6,6,3,3) = Eigen::Matrix<double, 3, 3>::Identity(3, 3)*0.001;
+			Q.block(6,6,3,3) = Eigen::Matrix<double, 3, 3>::Identity(3, 3)*0.005;
 			
 			Q.block(13,13,9,9) = Eigen::Matrix<double, 9, 9>::Identity(9, 9)*0.00001;
 			
 			
 			
-			R_mag.setIdentity()*0.1;
+			R_mag.setIdentity()*0.2*0.2;
 			
-			R_barro(0,0) = 0.1;
+			R_barro(0,0) = 0.1*0.1;
 			
 			R_gps.setIdentity();
 			R_gps(0,0) = 3*3;
@@ -577,6 +577,7 @@ class NavigationNode {
 				predict_step();
 			}
 
+
 			else if (rocket_fsm.state_machine.compare("Coast") == 0)
 			{
 				predict_step();
@@ -604,6 +605,8 @@ class NavigationNode {
 			rocket_state.propeller_mass = X(13);
 
 			nav_pub.publish(rocket_state);
+
+            //std::cout << X << std::endl;
 
             real_time_simulator::StateCovariance state_covariance;
 

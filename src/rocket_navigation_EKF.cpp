@@ -163,11 +163,11 @@ class NavigationNode {
 		// Last received fake GPS data
 		Eigen::Matrix<double, 3, 1> gps_pos;
         Eigen::Matrix<double, 3, 1> gps_vel;
-		double gps_noise_xy = 3.0;
-		double gps_noise_z = 3;
+		double gps_noise_xy = 2.0;
+		double gps_noise_z = 2;
 		double gps_freq = 10;	
-		double gps_noise_xy_vel = 3.0;
-		double gps_noise_z_vel = 3.0;
+		double gps_noise_xy_vel = 2.0;
+		double gps_noise_z_vel = 2.0;
 		// end fakegps
 	
 	public:
@@ -207,22 +207,22 @@ class NavigationNode {
 
             /// Initialize kalman parameters
             // sensor covarience matrices
-            R_baro(0,0) = 0.1;
+            R_baro(0,0) = 0.1*0.1;
 
             R_gps.setIdentity();
-            R_gps = R_gps*9;
+            R_gps = R_gps*4;
 
             R_mag.setIdentity();
-            R_mag = R_mag*0.2;
+            R_mag = R_mag*0.2*0.2;
 
             P.setZero(); // no error in the initial state
 
             // process covariance matrix
 			Q.setIdentity();
             Q = Q*0.05;
-            Q(0,0) = 0.01;
-            Q(1,1) = 0.01;
-            Q(2,2) = 0.01;
+            Q(0,0) = 0.1;
+            Q(1,1) = 0.1;
+            Q(2,2) = 0.1;
 
             Q(3,3) = 0.5;
             Q(4,4) = 0.5;
@@ -232,6 +232,8 @@ class NavigationNode {
             Q(7,7) = 0.0001;
             Q(8,8) = 0.0;
             Q(9,9) = 0.0;
+
+            Q(13,13) = 0.005;
 
 			// Init derivatives
         		ADx(X);
@@ -294,8 +296,8 @@ class NavigationNode {
             sensor_data_mag mag_data;
             mag_data << rocket_sensor.IMU_mag.x,rocket_sensor.IMU_mag.y,rocket_sensor.IMU_mag.z;
 
-            update_step_baro(z_baro);
-            update_step_mag(mag_data);
+            //update_step_baro(z_baro);
+            //update_step_mag(mag_data);
 		}
 		
 		// Callback function to fake gps with sensor data !
@@ -617,7 +619,7 @@ class NavigationNode {
 			rocket_state.twist.angular.x = X(10);
 			rocket_state.twist.angular.y = X(11);
 			rocket_state.twist.angular.z = X(12);
-            //std::cout<< X(10) << std::endl<< std::endl;
+            //std::cout<< X<< std::endl<< std::endl;
 
 			rocket_state.propeller_mass = X(13);
 
