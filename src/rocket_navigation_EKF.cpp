@@ -220,22 +220,26 @@ class NavigationNode {
             // process covariance matrix
 			Q.setIdentity();
             Q = Q*0.05;
-            Q(0,0) = 0.1;
-            Q(1,1) = 0.1;
-            Q(2,2) = 0.1;
+            Q(0,0) = 0.00001;
+            Q(1,1) = 0.00001;
+            Q(2,2) = 2;
 
-            Q(3,3) = 0.5;
-            Q(4,4) = 0.5;
-            Q(5,5) = 0.5;
+            Q(3,3) = 0.05;
+            Q(4,4) = 0.05;
+            Q(5,5) = 1;
 
             Q(6,6) = 0.0001;
             Q(7,7) = 0.0001;
-            Q(8,8) = 0.0;
-            Q(9,9) = 0.0;
+            Q(8,8) = 0.0000001;
+            Q(9,9) = 0.0000001;
 
-            Q(13,13) = 0.005;
+            Q(13,13) = 0.0025;
 
-			// Init derivatives
+            Q(30,30) = 0.000001;
+            Q(31,31) = 0.000001;
+            Q(32,32) = 0.000001;
+
+            // Init derivatives
         		ADx(X);
         		int div_size = ADx.size();
         		int derivative_idx = 0;
@@ -296,8 +300,8 @@ class NavigationNode {
             sensor_data_mag mag_data;
             mag_data << rocket_sensor.IMU_mag.x,rocket_sensor.IMU_mag.y,rocket_sensor.IMU_mag.z;
 
-            //update_step_baro(z_baro);
-            //update_step_mag(mag_data);
+            update_step_baro(z_baro);
+            update_step_mag(mag_data);
 		}
 		
 		// Callback function to fake gps with sensor data !

@@ -151,22 +151,33 @@ time_actuation = time_actuation - time_init
 
 # export state to csv
 with open('state_data.csv','w',newline='') as csvfile:
-    fieldnames = ['time_state','pos_x','pos_y','pos_z','vel_x','vel_y','vel_z','q0','q1','q2','q3','omega_x','omega_y','omega_z','mass']
+    fieldnames = ['time_state','pos_x','pos_y','pos_z','vel_x','vel_y','vel_z','qx','qy','qz','qw','omega_x','omega_y','omega_z','mass']
     thewriter = csv.DictWriter(csvfile,fieldnames=fieldnames)
     #thewriter.writeheader()
 
     state_index = 0
     for time_state_index in time_state:
-        thewriter.writerow({'time_state':time_state[state_index],'pos_x':position[state_index,0],'pos_y':position[state_index,1],'pos_z':position[state_index,2],'vel_x':speed[state_index,0],'vel_y':speed[state_index,1],'vel_z':speed[state_index,2],'q0':attitude[state_index,0],'q1':attitude[state_index,1],'q2':attitude[state_index,2],'q3':attitude[state_index,3],'omega_x':omega[state_index,0],'omega_y':omega[state_index,1],'omega_z':omega[state_index,2],'mass':prop_mass[state_index]})
+        thewriter.writerow({'time_state':time_state[state_index],'pos_x':position[state_index,0],'pos_y':position[state_index,1],'pos_z':position[state_index,2],'vel_x':speed[state_index,0],'vel_y':speed[state_index,1],'vel_z':speed[state_index,2],'qx':attitude[state_index,0],'qy':attitude[state_index,1],'qz':attitude[state_index,2],'qw':attitude[state_index,3],'omega_x':omega[state_index,0],'omega_y':omega[state_index,1],'omega_z':omega[state_index,2],'mass':prop_mass[state_index]})
         state_index +=1
 
 # export kalman state to csv
 with open('kalman_state_data.csv','w',newline='') as csvfile:
-    fieldnames = ['time_state','pos_x','pos_y','pos_z','vel_x','vel_y','vel_z','q0','q1','q2','q3','omega_x','omega_y','omega_z','mass']
+    fieldnames = ['time_state','pos_x','pos_y','pos_z','vel_x','vel_y','vel_z','qx','qy','qz','qw','omega_x','omega_y','omega_z','mass']
     thewriter = csv.DictWriter(csvfile,fieldnames=fieldnames)
     #thewriter.writeheader()
 
     state_index = 0
     for time_state_index in time_state_est:
-        thewriter.writerow({'time_state':time_state_est[state_index],'pos_x':position_est[state_index,0],'pos_y':position_est[state_index,1],'pos_z':position_est[state_index,2],'vel_x':speed_est[state_index,0],'vel_y':speed_est[state_index,1],'vel_z':speed_est[state_index,2],'q0':attitude_est[state_index,0],'q1':attitude_est[state_index,1],'q2':attitude_est[state_index,2],'q3':attitude_est[state_index,3],'omega_x':omega_est[state_index,0],'omega_y':omega_est[state_index,1],'omega_z':omega_est[state_index,2],'mass':prop_mass_est[state_index]})
+        thewriter.writerow({'time_state':time_state_est[state_index],'pos_x':position_est[state_index,0],'pos_y':position_est[state_index,1],'pos_z':position_est[state_index,2],'vel_x':speed_est[state_index,0],'vel_y':speed_est[state_index,1],'vel_z':speed_est[state_index,2],'qx':attitude_est[state_index,0],'qy':attitude_est[state_index,1],'qz':attitude_est[state_index,2],'qw':attitude_est[state_index,3],'omega_x':omega_est[state_index,0],'omega_y':omega_est[state_index,1],'omega_z':omega_est[state_index,2],'mass':prop_mass_est[state_index]})
+        state_index +=1
+
+# export kalman covarience to csv
+with open('kalman_covariance_diagonal.csv','w',newline='') as csvfile:
+    fieldnames = ['time_state','pos_x','pos_y','pos_z','vel_x','vel_y','vel_z','qx','qy','qz','qw','omega_x','omega_y','omega_z','mass']
+    thewriter = csv.DictWriter(csvfile,fieldnames=fieldnames)
+    #thewriter.writeheader()
+
+    state_index = 0
+    for time_state_index in time_state_est:
+        thewriter.writerow({'time_state':time_state_est[state_index],'pos_x':covariance[state_index,0],'pos_y':covariance[state_index,1],'pos_z':covariance[state_index,2],'vel_x':covariance[state_index,3],'vel_y':covariance[state_index,4],'vel_z':covariance[state_index,5],'qx':covariance[state_index,6],'qy':covariance[state_index,7],'qz':covariance[state_index,8],'qw':covariance[state_index,9],'omega_x':covariance[state_index,10],'omega_y':covariance[state_index,11],'omega_z':covariance[state_index,12],'mass':covariance[state_index,13]})
         state_index +=1

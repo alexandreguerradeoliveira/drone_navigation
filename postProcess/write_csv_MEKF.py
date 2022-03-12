@@ -174,3 +174,14 @@ with open('kalman_state_data.csv','w',newline='') as csvfile:
     for time_state_index in time_state_est:
         thewriter.writerow({'time_state':time_state_est[state_index],'pos_x':position_est[state_index,0],'pos_y':position_est[state_index,1],'pos_z':position_est[state_index,2],'vel_x':speed_est[state_index,0],'vel_y':speed_est[state_index,1],'vel_z':speed_est[state_index,2],'q0':attitude_est[state_index,0],'q1':attitude_est[state_index,1],'q2':attitude_est[state_index,2],'q3':attitude_est[state_index,3],'omega_x':omega_est[state_index,0],'omega_y':omega_est[state_index,1],'omega_z':omega_est[state_index,2],'mass':prop_mass_est[state_index]})
         state_index +=1
+
+        # export kalman covarience to csv
+with open('kalman_covariance_diagonal.csv','w',newline='') as csvfile:
+    fieldnames = ['time_state','pos_x','pos_y','pos_z','vel_x','vel_y','vel_z','alpha_x','alpha_y','alpha_z','omega_x','omega_y','omega_z','mass']
+    thewriter = csv.DictWriter(csvfile,fieldnames=fieldnames)
+    #thewriter.writeheader()
+
+    state_index = 0
+    for time_state_index in time_state_est:
+        thewriter.writerow({'time_state':time_state_est[state_index],'pos_x':covariance[state_index,0],'pos_y':covariance[state_index,1],'pos_z':covariance[state_index,2],'vel_x':covariance[state_index,3],'vel_y':covariance[state_index,4],'vel_z':covariance[state_index,5],'alpha_x':covariance[state_index,6],'alpha_y':covariance[state_index,7],'alpha_z':covariance[state_index,8],'omega_x':covariance[state_index,9],'omega_y':covariance[state_index,10],'omega_z':covariance[state_index,11],'mass':covariance[state_index,12]})
+        state_index +=1

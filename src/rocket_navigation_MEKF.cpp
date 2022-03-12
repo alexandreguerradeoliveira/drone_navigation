@@ -76,11 +76,11 @@ class NavigationNode {
 		// Last received fake GPS data
 		Eigen::Matrix<double, 3, 1> gps_pos;
 	      	Eigen::Matrix<double, 3, 1> gps_vel;
-		double gps_noise_xy = 3.0;
-		double gps_noise_z = 3;
-		double gps_freq = 3;
-		double gps_noise_xy_vel = 3.0;
-		double gps_noise_z_vel = 3.0;
+		double gps_noise_xy = 2.0;
+		double gps_noise_z = 2;
+		double gps_freq = 2;
+		double gps_noise_xy_vel = 2.0;
+		double gps_noise_z_vel = 2.0;
 		// end fakegps
 		
 		//Multiplicative EFK matrices
@@ -100,9 +100,6 @@ class NavigationNode {
 		Eigen::Matrix<double,6,22> H_gps;
 		Eigen::Matrix<double,1,22> H_barro;
 		Eigen::Matrix<double,3,22> H_mag;
-		
-		
-		
 		
 
 		// Kalman state
@@ -164,27 +161,30 @@ class NavigationNode {
 			
 			
 			Q.setZero();
-			Q.block(0,0,3,3) = Eigen::Matrix<double, 3, 3>::Identity(3, 3)*0.01;
+			Q.block(0,0,3,3) = Eigen::Matrix<double, 3, 3>::Identity(3, 3)*0.00001;
+            Q(2,2) = 2;
 
 			Q.block(3,3,3,3) = Eigen::Matrix<double, 3, 3>::Identity(3, 3)*0.05;
+            Q(5,5) = 1;
 			
-			Q.block(6,6,3,3) = Eigen::Matrix<double, 3, 3>::Identity(3, 3)*0.005;
+			Q.block(6,6,3,3) = Eigen::Matrix<double, 3, 3>::Identity(3, 3)*0.001;
 			
 			Q.block(13,13,9,9) = Eigen::Matrix<double, 9, 9>::Identity(9, 9)*0.00001;
-			
-			
-			
-			R_mag.setIdentity()*0.2*0.2;
+            Q(12,12) = 0.0025;
+
+
+
+            R_mag.setIdentity()*0.2*0.2;
 			
 			R_barro(0,0) = 0.1*0.1;
 			
 			R_gps.setIdentity();
-			R_gps(0,0) = 3*3;
-			R_gps(1,1) = 3*3;
-			R_gps(2,2) = 3*3;
-			R_gps(3,3) = 3*3;
-			R_gps(4,4) = 3*3;
-			R_gps(5,5) = 3*3;
+			R_gps(0,0) = 2*2;
+			R_gps(1,1) = 2*2;
+			R_gps(2,2) = 2*2;
+			R_gps(3,3) = 2*2;
+			R_gps(4,4) = 2*2;
+			R_gps(5,5) = 2*2;
 
 
         }
