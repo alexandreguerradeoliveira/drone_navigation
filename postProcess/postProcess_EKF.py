@@ -44,6 +44,8 @@ time_state_est = np.zeros((1,1))
 
 # state covariance matrix from navigation
 covariance = np.zeros((1,33))
+quat_covariance = np.zeros((1,4*4))
+
 
 # Controled forces and torque
 control_force = np.zeros((1,3))
@@ -86,8 +88,13 @@ for topic, msg, t in bag.read_messages(topics=['/rocket_state']):
 
 for topic, msg, t in bag.read_messages(topics=['/state_covariance']):
     new_cov = np.asarray(msg.covariance)
+    new_quat_cov = np.asarray(msg.quat_covariance)
+
+    new_quat_cov.flatten()
     new_cov.flatten()
+
     covariance = np.append(covariance,[new_cov],axis = 0)
+    quat_covariance = np.append(quat_covariance,[new_quat_cov],axis=0)
     #print(covariance)
 
 for topic, msg, t in bag.read_messages(topics=['/kalman_rocket_state']):
@@ -144,6 +151,7 @@ position = position[1:]
 attitude = attitude[1:]
 time_state = time_state[1:]
 covariance = covariance[1:]
+quat_covariance = quat_covariance[1:]
 
 prop_mass_est = prop_mass_est[1:]
 speed_est = speed_est[1:]

@@ -1,10 +1,15 @@
 %% Post process MATLAB script for navigation code
 clc,close all,clear all
+%% Settings
+calculate_cov_eul = 1; % set equals to zero to not calculate confidance interval of euler angles (takes a while)
+
+%% 
 %%read data
 state_data = csvread('state_data.csv');
 kalman_state_data = csvread('kalman_state_data.csv');
 
 kalman_covariance_diagonal_data = csvread('kalman_covariance_diagonal.csv');
+kalman_quat_covariance_data = csvread('kalman_quat_covariance_diagonal.csv');
 
 
 %% plot trajectory
@@ -16,7 +21,7 @@ plot3(kalman_state_data(:,2),kalman_state_data(:,3),kalman_state_data(:,4))
 legend("Simulated trajectory","Kalman Trajectory")
 
 %% error plots
-% time vectir
+% time vector
 tt_kal = kalman_state_data(:,1);
 
 % interpolate messages in a common time vector
@@ -121,6 +126,32 @@ interp_qy = interp1(state_data(:,1),state_data(:,9),tt_kal);
 interp_qz = interp1(state_data(:,1),state_data(:,10),tt_kal);
 quat_sim = [interp_qw,interp_qx,interp_qy,interp_qz];% [qw,qx,qy,qz]
 
+%
+syms q0 q1 q2 q3
+f = jacobian([atan(2*(q0*q3+q1*q2)/(1-2*(q2^2 + q3^2)));asin(2*(q0*q2-q3*q1));atan((2*(q0*q1+q2*q3))/(1-2*(q1^2+q2^2)))],[q0 q1 q2 q3]);
+
+if calculate_cov_eul ==1
+    for k = 1:size(kalman_quat_covariance_data(:,1),1)
+        %P_quat(:,:,k) = [kalman_quat_covariance_data(k,17),kalman_quat_covariance_data(k,14),kalman_quat_covariance_data(k,15),kalman_quat_covariance_data(k,16);...
+         %                 kalman_quat_covariance_data(k,5),kalman_quat_covariance_data(k,2),kalman_quat_covariance_data(k,3),kalman_quat_covariance_data(k,4);...
+         %                 kalman_quat_covariance_data(k,9),kalman_quat_covariance_data(k,6),kalman_quat_covariance_data(k,7),kalman_quat_covariance_data(k,8);...
+        %                 kalman_quat_covariance_data(k,13),kalman_quat_covariance_data(k,10),kalman_quat_covariance_data(k,11),kalman_quat_covariance_data(k,12)];
+        P_quat(:,:,k) = diag([kalman_covariance_diagonal_data(k,11),kalman_covariance_diagonal_data(k,8),kalman_covariance_diagonal_data(k,9),kalman_covariance_diagonal_data(k,10)]);
+        P_quat(:,:,k) = (P_quat(:,:,k) + P_quat(:,:,k)')/2;
+        P_eul(:,:,k) = double(subs(f,[q0 q1 q2 q3],[kalman_state_data(k,11),kalman_state_data(k,8),kalman_state_data(k,9),kalman_state_data(k,10)])*P_quat(:,:,k)*(subs(f,[q0 q1 q2 q3],[kalman_state_data(k,11),kalman_state_data(k,8),kalman_state_data(k,9),kalman_state_data(k,10)])'));
+   
+        std_eul1(k) = sqrt(P_eul(1,1,k));
+        std_eul2(k) = sqrt(P_eul(2,2,k));
+        std_eul3(k) = sqrt(P_eul(3,3,k));
+    end 
+end
+
+
+
+
+%subs(f,[q0 q1 q2 q3],[1 0 0 0]);
+
+
 %transform to euler angles
 
 eul_sim = quat2eul(quat_sim)*(180/pi);
@@ -132,6 +163,11 @@ nexttile
 hold on
 plot(tt_kal,err_eul(:,1));
 title("error in euler \alpha")
+if calculate_cov_eul == 1
+    plot(tt_kal,Z_confidance*std_eul1*(180/pi));
+    plot(tt_kal,-Z_confidance*std_eul1*(180/pi));
+end
+
 xlabel("time [s]")
 ylabel("error [deg]")
 
@@ -139,6 +175,11 @@ nexttile
 hold on
 plot(tt_kal,err_eul(:,2));
 title("error in euler \beta")
+if calculate_cov_eul == 1
+    plot(tt_kal,Z_confidance*std_eul2*(180/pi));
+    plot(tt_kal,-Z_confidance*std_eul2*(180/pi));
+end
+
 xlabel("time [s]")
 ylabel("error [deg]")
 
@@ -148,7 +189,10 @@ plot(tt_kal,err_eul(:,3));
 title("error in euler \gamma")
 xlabel("time [s]")
 ylabel("error [deg]")
-
+if calculate_cov_eul == 1
+    plot(tt_kal,Z_confidance*std_eul3*(180/pi));
+    plot(tt_kal,-Z_confidance*std_eul3*(180/pi));
+end
 
 %% err_mass
 nexttile

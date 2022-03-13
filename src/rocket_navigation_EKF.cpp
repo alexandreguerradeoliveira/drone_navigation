@@ -64,6 +64,9 @@ class NavigationNode {
 		static const int NZBARO = 1;
         static const int NZGPS = 6;
         static const int NZMAG = 3;
+        static const int NZACC = 3;
+
+
         //static const int NZOT = 10;
 		
 		
@@ -92,6 +95,12 @@ class NavigationNode {
         using sensor_data_mag = sensor_data_mag_t<double>;
         using ad_sensor_data_mag = sensor_data_mag_t<AutoDiffScalar<state_t<double>>>;// Autodiff sensor variable magnetometer
 
+    // Autodiff for accelerometer
+    template<typename scalar_t>
+    using sensor_data_acc_t = Eigen::Matrix<scalar_t, NZACC, 1>;
+    using sensor_data_acc = sensor_data_acc_t<double>;
+    using ad_sensor_data_acc = sensor_data_acc_t<AutoDiffScalar<state_t<double>>>;// Autodiff sensor variable magnetometer
+
 
         // Sensor mesurement model matrices
 
@@ -99,6 +108,8 @@ class NavigationNode {
     	typedef Eigen::Matrix<double, NZBARO, NZBARO> sensor_matrix_baro;
         typedef Eigen::Matrix<double, NZGPS, NZGPS> sensor_matrix_gps;
         typedef Eigen::Matrix<double, NZMAG, NZMAG> sensor_matrix_mag;
+        typedef Eigen::Matrix<double, NZACC, NZACC> sensor_matrix_acc;
+
 
 
 
@@ -135,6 +146,8 @@ class NavigationNode {
         sensor_matrix_baro R_baro;
         sensor_matrix_gps R_gps;
         sensor_matrix_mag R_mag;
+        sensor_matrix_acc R_acc;
+
 
 
 
@@ -151,6 +164,8 @@ class NavigationNode {
         Matrix<double,NZBARO,NX> H_baro; // computed using autodiff
         Matrix<double,NZGPS,NX> H_gps; // computed using autodiff
         Matrix<double,NZMAG,NX> H_mag; // computed using autodiff
+        Matrix<double,NZACC,NX> H_acc; // computed using autodiff
+
 
 
     // Kalman state
@@ -215,23 +230,25 @@ class NavigationNode {
             R_mag.setIdentity();
             R_mag = R_mag*0.2*0.2;
 
+            R_acc.setIdentity()*100;
+
             P.setZero(); // no error in the initial state
 
             // process covariance matrix
 			Q.setIdentity();
             Q = Q*0.05;
-            Q(0,0) = 0.00001;
-            Q(1,1) = 0.00001;
+            Q(0,0) = 1;
+            Q(1,1) = 1;
             Q(2,2) = 2;
 
-            Q(3,3) = 0.05;
-            Q(4,4) = 0.05;
+            Q(3,3) = 0.5;
+            Q(4,4) = 0.5;
             Q(5,5) = 1;
 
-            Q(6,6) = 0.0001;
-            Q(7,7) = 0.0001;
-            Q(8,8) = 0.0000001;
-            Q(9,9) = 0.0000001;
+            Q(6,6) = 0.00001;
+            Q(7,7) = 0.00001;
+            Q(8,8) = 0.00000001;
+            Q(9,9) = 0.00000001;
 
             Q(13,13) = 0.0025;
 
@@ -299,6 +316,16 @@ class NavigationNode {
 
             sensor_data_mag mag_data;
             mag_data << rocket_sensor.IMU_mag.x,rocket_sensor.IMU_mag.y,rocket_sensor.IMU_mag.z;
+
+            sensor_data_acc acc_data;
+            acc_data << rocket_sensor.IMU_acc.x,rocket_sensor.IMU_acc.y,rocket_sensor.IMU_acc.z;
+
+            //double g0 = 9.81;  // Earth gravity in [m/s^2]
+            //if(((acc_data).norm()<=1.1*g0)&&((acc_data).norm()>=0.9*g0)){
+            //    std::cout << "updating with acc" << std::endl;
+            //    std::cout << acc_data << std::endl;
+            //    update_step_acc(acc_data);
+            //}
 
             update_step_baro(z_baro);
             update_step_mag(mag_data);
@@ -418,6 +445,19 @@ class NavigationNode {
             // express inertial magnetic vector estimate in body-frame and add bias
             z = rot_matrix.transpose()*(x.segment(30,3)) + x.segment(20,3);
         }
+
+        template<typename T>
+        void measurementModelAcc(const state_t<T> &x, sensor_data_acc_t<T> &z) {
+            T g0 = (T) 9.81;  // Earth gravity in [m/s^2]
+            // get rotation matrix
+            Eigen::Quaternion<T> attitude(x(9), x(6), x(7), x(8));
+            attitude.normalize();
+            Eigen::Matrix<T, 3, 3> rot_matrix = attitude.toRotationMatrix();
+            Eigen::Matrix<T, 3, 1> gravity_vec = Eigen::Vector3d::UnitZ().template cast<T>() *(-g0);
+
+            // express inertial magnetic vector estimate in body-frame and add bias
+            z = rot_matrix.transpose()*(gravity_vec) + x.segment(17,3);
+    }
 
         template<typename T>
         void measurementModelGPS(const state_t<T> &x, sensor_data_gps_t<T> &z) {
@@ -587,6 +627,41 @@ class NavigationNode {
 
     }
 
+    void update_step_acc(const sensor_data_acc &z)
+    {
+        //propagate hdot autodiff scalar at current x
+        ADx = X;
+        ad_sensor_data_acc hdot;
+        measurementModelAcc(ADx, hdot);
+
+        //compute h(x)
+        sensor_data_acc h_x;
+        measurementModelAcc(X, h_x);
+
+        // obtain the jacobian of h(x)
+        for (int i = 0; i < hdot.size(); i++) {
+            H_acc.row(i) = hdot(i).derivatives();
+        }
+
+        // compute EKF update
+        // taken from https://github.com/LA-EPFL/yakf/blob/master/ExtendedKalmanFilter.h
+        Eigen::Matrix<double, NX, NX> IKH;  // temporary matrix
+        Eigen::Matrix<double, NZACC, NZACC> S; // innovation covariance
+        Eigen::Matrix<double, NX, NZACC> K; // Kalman gain
+        Eigen::Matrix<double, NX, NX> I; // identity
+
+        I.setIdentity();
+        S = H_acc * P * H_acc.transpose() + R_acc;
+        K = S.llt().solve(H_acc * P).transpose();
+        X = X + K * (z - h_x);
+
+        //std::cout << K << std::endl << std::endl;
+
+        IKH = (I - K * H_acc);
+        P = IKH * P * IKH.transpose() + K * R_acc * K.transpose();
+
+    }
+
 		void updateNavigation()
 		{
 			// ----------------- State machine -----------------
@@ -635,13 +710,10 @@ class NavigationNode {
             Matrix<double,NX,1> P_diag;
             P_diag = P.diagonal();
             std::vector<double> P_vec(P_diag.data(), P_diag.data() + NX);
+            std::vector<double> P_quat(P.block(6,6,4,4).data(), P.block(6,6,4,4).data() + 4*4);
             state_covariance.covariance = P_vec;
+            state_covariance.quat_covariance = P_quat;
             cov_pub.publish(state_covariance);
-
-
-
-            //std::cout << X << std::endl << std::endl;
-
 		}
 };
 

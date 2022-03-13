@@ -123,31 +123,38 @@ quat_sim = [interp_qw,interp_qx,interp_qy,interp_qz];% [qw,qx,qy,qz]
 
 %transform to euler angles
 
-eul_sim = quat2eul(quat_sim)*(180/pi);
-eul_kal= quat2eul(quat_kal)*(180/pi);
+rod_sim = quat2rod(quat_sim);
+rod_kal= quat2rod(quat_kal);
 
-err_eul = (eul_kal-eul_sim);
-
-nexttile
-hold on
-plot(tt_kal,err_eul(:,1));
-title("error in euler \alpha")
-xlabel("time [s]")
-ylabel("error [deg]")
+err_rod = (rod_kal-rod_sim);
 
 nexttile
 hold on
-plot(tt_kal,err_eul(:,2));
-title("error in euler \beta")
+plot(tt_kal,err_rod(:,1));
+title("error in alpha_x ")
 xlabel("time [s]")
 ylabel("error [deg]")
+plot(tt_kal,Z_confidance*sqrt(kalman_covariance_diagonal_data(:,8)));
+plot(tt_kal,-Z_confidance*sqrt(kalman_covariance_diagonal_data(:,8)));
 
 nexttile
 hold on
-plot(tt_kal,err_eul(:,3));
-title("error in euler \gamma")
+plot(tt_kal,err_rod(:,2));
+title("error in alpha_y ")
 xlabel("time [s]")
 ylabel("error [deg]")
+
+plot(tt_kal,Z_confidance*sqrt(kalman_covariance_diagonal_data(:,9)));
+plot(tt_kal,-Z_confidance*sqrt(kalman_covariance_diagonal_data(:,9)));
+
+nexttile
+hold on
+plot(tt_kal,err_rod(:,3));
+title("error in alpha_z")
+xlabel("time [s]")
+ylabel("error [deg]")
+plot(tt_kal,Z_confidance*sqrt(kalman_covariance_diagonal_data(:,10)));
+plot(tt_kal,-Z_confidance*sqrt(kalman_covariance_diagonal_data(:,10)));
 
 
 %% err_mass
@@ -162,15 +169,15 @@ ylabel("error [Kg]")
 
 %% Plots
 figure
-title("Euler angles (ZYX) in degrees")
+title("Rodrigues parameters")
 hold on
-plot(tt_kal,eul_sim(:,1));
-plot(tt_kal,eul_sim(:,2));
-plot(tt_kal,eul_sim(:,3));
-plot(tt_kal,eul_kal(:,1));
-plot(tt_kal,eul_kal(:,2));
-plot(tt_kal,eul_kal(:,3));
-legend("\alpha_{sim}","\beta_{sim}","\gamma_{sim}","\alpha_{kal}","\beta_{kal}","\gamma_{kal}")
+plot(tt_kal,rod_sim(:,1));
+plot(tt_kal,rod_sim(:,2));
+plot(tt_kal,rod_sim(:,3));
+plot(tt_kal,rod_kal(:,1));
+plot(tt_kal,rod_kal(:,2));
+plot(tt_kal,rod_kal(:,3));
+legend("\alpha_{x,sim}","\alpha_{y,sim}","\alpha_{z,sim}","\alpha_{x,kal}","\alpha_{y,kal}","\alpha_{z,kal}")
 
 
 

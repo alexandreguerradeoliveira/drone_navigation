@@ -167,9 +167,10 @@ class NavigationNode {
 			Q.block(3,3,3,3) = Eigen::Matrix<double, 3, 3>::Identity(3, 3)*0.05;
             Q(5,5) = 1;
 			
-			Q.block(6,6,3,3) = Eigen::Matrix<double, 3, 3>::Identity(3, 3)*0.001;
+			Q.block(6,6,3,3) = Eigen::Matrix<double, 3, 3>::Identity(3, 3)*0.0001;
 			
 			Q.block(13,13,9,9) = Eigen::Matrix<double, 9, 9>::Identity(9, 9)*0.00001;
+
             Q(12,12) = 0.0025;
 
 
