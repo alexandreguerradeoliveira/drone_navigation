@@ -814,7 +814,7 @@ class NavigationNode {
 			rocket_state.twist.angular.x = X(10);
 			rocket_state.twist.angular.y = X(11);
 			rocket_state.twist.angular.z = X(12);
-            //std::cout<< X.segment(14,10)<< std::endl<< std::endl;
+            //std::cout<< X.segment(14+9,1)<< std::endl<< std::endl;
 
 			rocket_state.propeller_mass = X(13);
 
