@@ -386,7 +386,7 @@ class NavigationNode {
 			Eigen::Matrix<T, 3, 3> rot_matrix = attitude.toRotationMatrix();
 
 			// Current acceleration and angular rate from IMU
-			Eigen::Matrix<T, 3, 1> IMU_acc; IMU_acc << (T) rocket_sensor.IMU_acc.x,(T) rocket_sensor.IMU_acc.y,(T) rocket_sensor.IMU_acc.z;
+			Eigen::Matrix<T, 3, 1> IMU_acc; IMU_acc << (T) rocket_sensor.IMU_acc.x-x(17),(T) rocket_sensor.IMU_acc.y-x(18),(T) rocket_sensor.IMU_acc.z-x(19);
 
 			// Angular velocity omega in quaternion format to compute quaternion derivative
             Eigen::Quaternion<T> omega_quat(0.0, rocket_sensor.IMU_gyro.x-x(14), rocket_sensor.IMU_gyro.y-x(15), rocket_sensor.IMU_gyro.z-x(16));
@@ -419,9 +419,6 @@ class NavigationNode {
             xdot.segment(6, 4) =  0.5*(attitude*omega_quat).coeffs();
 
 			// Angular speed
-			//xdot.segment(10, 3) << 0,0,0;
-            //xdot.segment(10, 3) = rot_matrix*(I_inv*( -omega*(I*omega) + total_torque_body)); // in inertial frame
-            //xdot.segment(10, 3) = (I_inv*( -omega.cross(I*omega) + total_torque_body)); // in inertial frame
             xdot.segment(10, 3) = rot_matrix*(total_torque_body - omega.cross(I.template cast<T>().cwiseProduct(omega))).cwiseProduct(I_inv.template cast<T>());
 
 
@@ -600,7 +597,7 @@ class NavigationNode {
                 omega_b <<rocket_sensor.IMU_gyro.x-X(14), rocket_sensor.IMU_gyro.y-X(15), rocket_sensor.IMU_gyro.z-X(16);
                 X.segment(10,3) = rot_matrix*omega_b;
 
-
+                //RK4 integration
         		fullDerivative(X, P, k1, k1_P);
         		fullDerivative(X + k1 * dT / 2, P + k1_P * dT / 2, k2, k2_P);
         		fullDerivative(X + k2 * dT / 2, P + k2_P * dT / 2, k3, k3_P);
@@ -817,7 +814,7 @@ class NavigationNode {
 			rocket_state.twist.angular.x = X(10);
 			rocket_state.twist.angular.y = X(11);
 			rocket_state.twist.angular.z = X(12);
-            //std::cout<< X<< std::endl<< std::endl;
+            //std::cout<< X.segment(14,10)<< std::endl<< std::endl;
 
 			rocket_state.propeller_mass = X(13);
 

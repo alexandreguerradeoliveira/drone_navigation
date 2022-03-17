@@ -1,7 +1,7 @@
 %% Post process MATLAB script for navigation code
 clc,close all,clear all
 %% Settings
-calculate_cov_eul = 1; % set equals to zero to not calculate confidance interval of euler angles (takes a while)
+calculate_cov_eul = 0; % set equals to zero to not calculate confidance interval of euler angles (takes a while)
 
 %% 
 %%read data
