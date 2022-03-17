@@ -116,14 +116,14 @@ class ControlNode {
 
         //thrust_force.x = -200*rocket_state.twist.angular.y;
         //thrust_force.y = -200*rocket_state.twist.angular.x;
-          thrust_force.x = 0.0;
-          thrust_force.y = 0.0;
+        thrust_force.x = 0.0;
+        thrust_force.y = 0.0;
         thrust_force.z = rocket.get_full_thrust(rocket_fsm.time_now);
 
         thrust_torque.x = thrust_force.y*rocket.total_CM;
         thrust_torque.y = thrust_force.x*rocket.total_CM; // might be a minus
         //thrust_torque.z = -10*rocket_state.twist.angular.z;
-          thrust_torque.z = 0.0;
+        thrust_torque.z = 0.0;
 
 
         control_law.force = thrust_force;

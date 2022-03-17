@@ -126,19 +126,28 @@ interp_qy = interp1(state_data(:,1),state_data(:,9),tt_kal);
 interp_qz = interp1(state_data(:,1),state_data(:,10),tt_kal);
 quat_sim = [interp_qw,interp_qx,interp_qy,interp_qz];% [qw,qx,qy,qz]
 
-%
+% calculate euler angles covariances based on quaternion covariance
+
 syms q0 q1 q2 q3
 f = jacobian([atan(2*(q0*q3+q1*q2)/(1-2*(q2^2 + q3^2)));asin(2*(q0*q2-q3*q1));atan((2*(q0*q1+q2*q3))/(1-2*(q1^2+q2^2)))],[q0 q1 q2 q3]);
 
 if calculate_cov_eul ==1
+    P_quat = zeros(4,4,size(kalman_quat_covariance_data(:,1),1));
+    P_eul = zeros(3,3,size(kalman_quat_covariance_data(:,1),1));
+    std_eul1 = zeros(1,size(kalman_quat_covariance_data(:,1),1));
+    std_eul2 = zeros(1,size(kalman_quat_covariance_data(:,1),1));
+    std_eul3 = zeros(1,size(kalman_quat_covariance_data(:,1),1));
+
+    
     for k = 1:size(kalman_quat_covariance_data(:,1),1)
         %P_quat(:,:,k) = [kalman_quat_covariance_data(k,17),kalman_quat_covariance_data(k,14),kalman_quat_covariance_data(k,15),kalman_quat_covariance_data(k,16);...
-         %                 kalman_quat_covariance_data(k,5),kalman_quat_covariance_data(k,2),kalman_quat_covariance_data(k,3),kalman_quat_covariance_data(k,4);...
-         %                 kalman_quat_covariance_data(k,9),kalman_quat_covariance_data(k,6),kalman_quat_covariance_data(k,7),kalman_quat_covariance_data(k,8);...
+        %                 kalman_quat_covariance_data(k,5),kalman_quat_covariance_data(k,2),kalman_quat_covariance_data(k,3),kalman_quat_covariance_data(k,4);...
+        %                 kalman_quat_covariance_data(k,9),kalman_quat_covariance_data(k,6),kalman_quat_covariance_data(k,7),kalman_quat_covariance_data(k,8);...
         %                 kalman_quat_covariance_data(k,13),kalman_quat_covariance_data(k,10),kalman_quat_covariance_data(k,11),kalman_quat_covariance_data(k,12)];
         P_quat(:,:,k) = diag([kalman_covariance_diagonal_data(k,11),kalman_covariance_diagonal_data(k,8),kalman_covariance_diagonal_data(k,9),kalman_covariance_diagonal_data(k,10)]);
-        P_quat(:,:,k) = (P_quat(:,:,k) + P_quat(:,:,k)')/2;
-        P_eul(:,:,k) = double(subs(f,[q0 q1 q2 q3],[kalman_state_data(k,11),kalman_state_data(k,8),kalman_state_data(k,9),kalman_state_data(k,10)])*P_quat(:,:,k)*(subs(f,[q0 q1 q2 q3],[kalman_state_data(k,11),kalman_state_data(k,8),kalman_state_data(k,9),kalman_state_data(k,10)])'));
+        %P_quat(:,:,k) = (P_quat(:,:,k) + P_quat(:,:,k)')/2;
+        Jac = subs(f,[q0 q1 q2 q3],[kalman_state_data(k,11),kalman_state_data(k,8),kalman_state_data(k,9),kalman_state_data(k,10)]);
+        P_eul(:,:,k) = double(Jac*P_quat(:,:,k)*(Jac'));
    
         std_eul1(k) = sqrt(P_eul(1,1,k));
         std_eul2(k) = sqrt(P_eul(2,2,k));
@@ -147,12 +156,7 @@ if calculate_cov_eul ==1
 end
 
 
-
-
-%subs(f,[q0 q1 q2 q3],[1 0 0 0]);
-
-
-%transform to euler angles
+%transform to euler angles (ZYX euler: psi,theta,phi)
 
 eul_sim = quat2eul(quat_sim)*(180/pi);
 eul_kal= quat2eul(quat_kal)*(180/pi);
@@ -162,7 +166,7 @@ err_eul = (eul_kal-eul_sim);
 nexttile
 hold on
 plot(tt_kal,err_eul(:,1));
-title("error in euler \alpha")
+title("Kalman error in euler \psi")
 if calculate_cov_eul == 1
     plot(tt_kal,Z_confidance*std_eul1*(180/pi));
     plot(tt_kal,-Z_confidance*std_eul1*(180/pi));
@@ -174,7 +178,7 @@ ylabel("error [deg]")
 nexttile
 hold on
 plot(tt_kal,err_eul(:,2));
-title("error in euler \beta")
+title("Kalman error in euler \theta")
 if calculate_cov_eul == 1
     plot(tt_kal,Z_confidance*std_eul2*(180/pi));
     plot(tt_kal,-Z_confidance*std_eul2*(180/pi));
@@ -186,7 +190,7 @@ ylabel("error [deg]")
 nexttile
 hold on
 plot(tt_kal,err_eul(:,3));
-title("error in euler \gamma")
+title("Kalman error in euler \phi")
 xlabel("time [s]")
 ylabel("error [deg]")
 if calculate_cov_eul == 1
@@ -204,7 +208,7 @@ title("Kalman error in mass")
 xlabel("time [s]")
 ylabel("error [Kg]")
 
-%% Plots
+%% Euler angles plot
 figure
 title("Euler angles (ZYX) in degrees")
 hold on
@@ -214,9 +218,9 @@ plot(tt_kal,eul_sim(:,3));
 plot(tt_kal,eul_kal(:,1));
 plot(tt_kal,eul_kal(:,2));
 plot(tt_kal,eul_kal(:,3));
-legend("\alpha_{sim}","\beta_{sim}","\gamma_{sim}","\alpha_{kal}","\beta_{kal}","\gamma_{kal}")
+legend("\psi_{sim}","\theta_{sim}","\phi_{sim}","\psi_{kal}","\theta_{kal}","\phi_{kal}")
 
-
+%%
 
 
 
