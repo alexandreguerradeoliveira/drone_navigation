@@ -95,11 +95,11 @@ class NavigationNode {
         using sensor_data_mag = sensor_data_mag_t<double>;
         using ad_sensor_data_mag = sensor_data_mag_t<AutoDiffScalar<state_t<double>>>;// Autodiff sensor variable magnetometer
 
-    // Autodiff for accelerometer
-    template<typename scalar_t>
-    using sensor_data_acc_t = Eigen::Matrix<scalar_t, NZACC, 1>;
-    using sensor_data_acc = sensor_data_acc_t<double>;
-    using ad_sensor_data_acc = sensor_data_acc_t<AutoDiffScalar<state_t<double>>>;// Autodiff sensor variable magnetometer
+        // Autodiff for accelerometer
+        template<typename scalar_t>
+        using sensor_data_acc_t = Eigen::Matrix<scalar_t, NZACC, 1>;
+        using sensor_data_acc = sensor_data_acc_t<double>;
+        using ad_sensor_data_acc = sensor_data_acc_t<AutoDiffScalar<state_t<double>>>;// Autodiff sensor variable magnetometer
 
 
         // Sensor mesurement model matrices
@@ -111,12 +111,7 @@ class NavigationNode {
         typedef Eigen::Matrix<double, NZACC, NZACC> sensor_matrix_acc;
 
 
-
-
     /// AUTODIFF stuff end
-    		
-    		
-
 
 	private:
         // sensor received flag
@@ -156,10 +151,6 @@ class NavigationNode {
         sensor_matrix_gps R_gps;
         sensor_matrix_mag R_mag;
         sensor_matrix_acc R_acc;
-
-
-
-
 
 
     /// EKF matrices
@@ -248,11 +239,11 @@ class NavigationNode {
             Q = Q*0.000000001;
             Q(0,0) = 0.2;
             Q(1,1) = 0.2;
-            Q(2,2) = 0.25;
+            Q(2,2) = 0.2;
 
             Q(3,3) = 0.2;
             Q(4,4) = 0.2;
-            Q(5,5) = 0.25;
+            Q(5,5) = 0.2;
 
             Q(6,6) = 0.00001;
             Q(7,7) = 0.00001;
@@ -318,7 +309,6 @@ class NavigationNode {
 			
 			rocket_sensor.baro_height = sensor->baro_height;
 
-
             z_baro(0) = rocket_sensor.baro_height;
 
             mag_data << rocket_sensor.IMU_mag.x,rocket_sensor.IMU_mag.y,rocket_sensor.IMU_mag.z;
@@ -370,7 +360,6 @@ class NavigationNode {
 
                         gps_flag = true;
 
-
 			            last_predict_time_gps = ros::Time::now().toSec();
 
 			};
@@ -388,6 +377,9 @@ class NavigationNode {
 			Eigen::Matrix<T, 3, 1> rocket_force;
 			rocket_force << rocket_control.force.x, rocket_control.force.y, rocket_control.force.z;
 
+            Eigen::Matrix<T, 3, 1> control_torque;
+            control_torque << rocket_control.torque.x, rocket_control.torque.y, rocket_control.torque.z;
+
 			// Orientation of the rocket with quaternion
 			Eigen::Quaternion<T> attitude(x(9), x(6), x(7), x(8));
 			attitude.normalize();
@@ -399,6 +391,21 @@ class NavigationNode {
 			// Angular velocity omega in quaternion format to compute quaternion derivative
             Eigen::Quaternion<T> omega_quat(0.0, rocket_sensor.IMU_gyro.x-x(14), rocket_sensor.IMU_gyro.y-x(15), rocket_sensor.IMU_gyro.z-x(16));
 
+            //Inertia
+            Matrix<T, 3, 1> I_inv;
+            I_inv << 1 / rocket.total_Inertia[0], 1 / rocket.total_Inertia[1], 1 / rocket.total_Inertia[2];
+            Matrix<T, 3, 1> I;
+            I<< rocket.total_Inertia[0], rocket.total_Inertia[1],rocket.total_Inertia[2];
+
+            Eigen::Matrix<T, 3, 1> dist_torque;
+            dist_torque << x(27),x(28),x(29);
+
+            // compute total torque in body frame
+            Eigen::Matrix<T, 3, 1> total_torque_body;
+            total_torque_body = control_torque + rot_matrix.transpose()*dist_torque;
+
+            Eigen::Matrix<T, 3, 1> omega;
+            omega << rocket_sensor.IMU_gyro.x-x(14), rocket_sensor.IMU_gyro.y-x(15), rocket_sensor.IMU_gyro.z-x(16);
 
             // -------------- Differential equation ---------------------
 
@@ -412,8 +419,14 @@ class NavigationNode {
             xdot.segment(6, 4) =  0.5*(attitude*omega_quat).coeffs();
 
 			// Angular speed
+			//xdot.segment(10, 3) << 0,0,0;
+            //xdot.segment(10, 3) = rot_matrix*(I_inv*( -omega*(I*omega) + total_torque_body)); // in inertial frame
+            //xdot.segment(10, 3) = (I_inv*( -omega.cross(I*omega) + total_torque_body)); // in inertial frame
+            xdot.segment(10, 3) = rot_matrix*(total_torque_body - omega.cross(I.template cast<T>().cwiseProduct(omega))).cwiseProduct(I_inv.template cast<T>());
 
-			xdot.segment(10, 3) << 0,0,0;
+
+
+
 
 			// Mass variation is proportional to total thrust (! autodiff .norm() gives nan)
             if(rocket_force.template cast<T>().norm()<0.01){
@@ -421,7 +434,6 @@ class NavigationNode {
             }else{
                 xdot(13) = -(rocket_force.template cast<T>().norm())/((T)rocket.Isp*g0);
             }
-
 
             //Bias for gyroscope, accelerometer, magnetometer, barometer - bias variation follows a static update
             xdot.segment(14, 10) << 0, 0, 0,  0, 0, 0,  0, 0, 0,  0;
@@ -466,7 +478,7 @@ class NavigationNode {
 
         // compute total torque in body frame
         Eigen::Matrix<T, 3, 1> total_torque_body;
-        total_torque_body = control_torque + rot_matrix.tranpose()*dist_torque;
+        total_torque_body = control_torque + rot_matrix.transpose()*dist_torque;
 
         Eigen::Matrix<T, 3, 1> omega;
         omega << x(10),x(11),x(12);
@@ -493,7 +505,9 @@ class NavigationNode {
 
         // Angular speed variation is given by euler's equation if in body frame
         //xdot.segment(10, 3) = I_inv( -omega*(I*omega) + total_torque_body); // in body frame
-        xdot.segment(10, 3) = rot_matrix*(I_inv( -omega*(I*omega) + total_torque_body)); // in inertial frame
+        //xdot.segment(10, 3) = rot_matrix*(I_inv*( -omega.cross(I*omega) + total_torque_body)); // in inertial frame
+        xdot.segment(10, 3) = rot_matrix*(total_torque_body - omega.cross(I.template cast<T>().cwiseProduct(omega))).cwiseProduct(I_inv.template cast<T>());
+
 
         // Mass variation is proportional to total thrust (! autodiff .norm() gives nan)
         if(control_force.template cast<T>().norm()<0.01){
@@ -574,9 +588,18 @@ class NavigationNode {
         }
 		
 
-		void RK4(const double dT,const state &X,const state_matrix &P,state &Xnext,state_matrix &Pnext) {
+		void RK4(const double dT,state &X,const state_matrix &P,state &Xnext,state_matrix &Pnext) {
         		state k1, k2, k3, k4;
         		state_matrix k1_P, k2_P, k3_P, k4_P;
+
+                // update rotation speed to those of gyro
+                Matrix<double,3,1>omega_b;
+                Eigen::Quaternion<double> attitude(X(9), X(6), X(7), X(8));
+                attitude.normalize();
+                Eigen::Matrix<double, 3, 3> rot_matrix = attitude.toRotationMatrix();
+                omega_b <<rocket_sensor.IMU_gyro.x-X(14), rocket_sensor.IMU_gyro.y-X(15), rocket_sensor.IMU_gyro.z-X(16);
+                X.segment(10,3) = rot_matrix*omega_b;
+
 
         		fullDerivative(X, P, k1, k1_P);
         		fullDerivative(X + k1 * dT / 2, P + k1_P * dT / 2, k2, k2_P);
@@ -587,16 +610,6 @@ class NavigationNode {
                 Pnext = P + (k1_P + 2 * k2_P + 2 * k3_P + k4_P) * dT / 6;
 
 
-                // jenky stuff for the time beeing
-                Matrix<double,3,1>omega_b;
-                Eigen::Quaternion<double> attitude(X(9), X(6), X(7), X(8));
-                attitude.normalize();
-                Eigen::Matrix<double, 3, 3> rot_matrix = attitude.toRotationMatrix();
-                omega_b <<rocket_sensor.IMU_gyro.x-X(14), rocket_sensor.IMU_gyro.y-X(15), rocket_sensor.IMU_gyro.z-X(16);
-                Xnext.segment(10,3) = rot_matrix*omega_b;
-
-
-            //std::cout << P << std::endl<< std::endl;
         }
 
 		void predict_step()
