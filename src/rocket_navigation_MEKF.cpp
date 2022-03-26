@@ -179,15 +179,7 @@ class NavigationNode {
 			
 			R_barro(0,0) = 0.1*0.1;
 			
-			R_gps.setIdentity();
-			R_gps(0,0) = 2*2;
-			R_gps(1,1) = 2*2;
-			R_gps(2,2) = 2*2;
-			R_gps(3,3) = 2*2;
-			R_gps(4,4) = 2*2;
-			R_gps(5,5) = 2*2;
-
-
+			R_gps.setIdentity()*5;
         }
 
 		void initTopics(ros::NodeHandle &nh) 
@@ -329,7 +321,7 @@ class NavigationNode {
 			
 			//Constant bias for IMU
 			xdot.segment(14, 9) << 0, 0, 0,  0, 0, 0,  0, 0, 0;
-			
+
 
 			
 		}

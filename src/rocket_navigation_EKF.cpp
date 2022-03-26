@@ -54,9 +54,6 @@ using namespace Eigen;
 
 #define DEG2RAD 0.01745329251
 
-
-
-
 class NavigationNode {
 	public:
 		static const int NX = 33;
@@ -481,7 +478,7 @@ class NavigationNode {
         omega << x(10),x(11),x(12);
 
         // Angular velocity omega in quaternion format to compute quaternion derivative
-        Eigen::Quaternion<T> omega_quat(0.0, x(10)-x(14), x(11)-x(15), x(12)-x(16));
+        Eigen::Quaternion<T> omega_quat(0.0, x(10), x(11), x(12));
 
         //Inertia
         Matrix<T, 3, 1> I_inv;
@@ -723,6 +720,7 @@ class NavigationNode {
 
     }
 
+    // !!!!!! this does not work in flight !!!!!!!!!
     void update_step_acc(const sensor_data_acc &z)
     {
         //propagate hdot autodiff scalar at current x
