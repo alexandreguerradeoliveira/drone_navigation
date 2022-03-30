@@ -62,9 +62,11 @@ class NavigationNode {
         static const int NZGPS = 6;
         static const int NZMAG = 3;
         static const int NZACC = 3;
+        static const int NZGYRO = 3;
 
 
-        //static const int NZOT = 10;
+
+    //static const int NZOT = 10;
 		
 		
 		/// AUTODIFF stuff
@@ -98,6 +100,12 @@ class NavigationNode {
         using sensor_data_acc = sensor_data_acc_t<double>;
         using ad_sensor_data_acc = sensor_data_acc_t<AutoDiffScalar<state_t<double>>>;// Autodiff sensor variable magnetometer
 
+        // Autodiff for gyroscope
+        template<typename scalar_t>
+        using sensor_data_gyro_t = Eigen::Matrix<scalar_t, NZGYRO, 1>;
+        using sensor_data_gyro = sensor_data_gyro_t<double>;
+        using ad_sensor_data_gyro = sensor_data_gyro_t<AutoDiffScalar<state_t<double>>>;// Autodiff sensor variable gyroscope
+
 
         // Sensor mesurement model matrices
 
@@ -106,6 +114,8 @@ class NavigationNode {
         typedef Eigen::Matrix<double, NZGPS, NZGPS> sensor_matrix_gps;
         typedef Eigen::Matrix<double, NZMAG, NZMAG> sensor_matrix_mag;
         typedef Eigen::Matrix<double, NZACC, NZACC> sensor_matrix_acc;
+        typedef Eigen::Matrix<double, NZGYRO, NZGYRO> sensor_matrix_gyro;
+
 
 
     /// AUTODIFF stuff end
@@ -118,6 +128,8 @@ class NavigationNode {
         sensor_data_gps gps_data;
         sensor_data_baro z_baro;
         sensor_data_mag mag_data;
+        sensor_data_gyro gyro_data;
+
 
 
     // Class with useful rocket parameters and methods
@@ -148,6 +160,8 @@ class NavigationNode {
         sensor_matrix_gps R_gps;
         sensor_matrix_mag R_mag;
         sensor_matrix_acc R_acc;
+        sensor_matrix_acc R_gyro;
+
 
 
     /// EKF matrices
@@ -162,6 +176,8 @@ class NavigationNode {
         Matrix<double,NZGPS,NX> H_gps; // computed using autodiff
         Matrix<double,NZMAG,NX> H_mag; // computed using autodiff
         Matrix<double,NZACC,NX> H_acc; // computed using autodiff
+        Matrix<double,NZGYRO,NX> H_gyro; // computed using autodiff
+
 
 
 
@@ -226,6 +242,9 @@ class NavigationNode {
 
             R_mag.setIdentity();
             R_mag = R_mag*0.001;
+
+            R_gyro.setIdentity();
+            R_gyro = R_gyro*0.001;
 
             R_acc.setIdentity()*100;
 
@@ -310,6 +329,7 @@ class NavigationNode {
 
             mag_data << rocket_sensor.IMU_mag.x,rocket_sensor.IMU_mag.y,rocket_sensor.IMU_mag.z;
 
+            gyro_data << rocket_sensor.IMU_gyro.x,rocket_sensor.IMU_gyro.y,rocket_sensor.IMU_gyro.z;
             //sensor_data_acc acc_data;
             //acc_data << rocket_sensor.IMU_acc.x,rocket_sensor.IMU_acc.y,rocket_sensor.IMU_acc.z;
 
@@ -387,6 +407,7 @@ class NavigationNode {
 
 			// Angular velocity omega in quaternion format to compute quaternion derivative
             Eigen::Quaternion<T> omega_quat(0.0, rocket_sensor.IMU_gyro.x-x(14), rocket_sensor.IMU_gyro.y-x(15), rocket_sensor.IMU_gyro.z-x(16));
+            //Eigen::Quaternion<T> omega_quat(0.0, x(10), x(11), x(12));
 
             //Inertia
             Matrix<T, 3, 1> I_inv;
@@ -403,6 +424,8 @@ class NavigationNode {
 
             Eigen::Matrix<T, 3, 1> omega;
             omega << rocket_sensor.IMU_gyro.x-x(14), rocket_sensor.IMU_gyro.y-x(15), rocket_sensor.IMU_gyro.z-x(16);
+            //omega << x(10),x(11),x(12);
+            //omega = rot_matrix.transpose()*omega;
 
             // -------------- Differential equation ---------------------
 
@@ -414,12 +437,10 @@ class NavigationNode {
 
 			// Quaternion variation is 0.5*q*omega_quat if omega is in the body frame
             xdot.segment(6, 4) =  0.5*(attitude*omega_quat).coeffs();
+            //xdot.segment(6, 4) =  0.5*(omega_quat*attitude).coeffs(); // inertial frame
 
 			// Angular speed
             xdot.segment(10, 3) = rot_matrix*(total_torque_body - omega.cross(I.template cast<T>().cwiseProduct(omega))).cwiseProduct(I_inv.template cast<T>());
-
-
-
 
 
 			// Mass variation is proportional to total thrust (! autodiff .norm() gives nan)
@@ -557,6 +578,15 @@ class NavigationNode {
         void mesurementModelGPS(const state_t<T> &x, sensor_data_gps_t<T> &z) {
             z = x.segment(0,6);
         }
+
+        template<typename T>
+        void mesurementModelGyro(const state_t<T> &x, sensor_data_gyro_t<T> &z) {
+            Eigen::Quaternion<T> attitude(x(9), x(6), x(7), x(8));
+            attitude.normalize();
+            Eigen::Matrix<T, 3, 3> rot_matrix = attitude.toRotationMatrix();
+
+            z = rot_matrix.transpose()*(x.segment(10,3))+x.segment(14,3);
+        }
 		
 		void fullDerivative(const state &x,
                         const state_matrix &P,
@@ -587,12 +617,12 @@ class NavigationNode {
         		state_matrix k1_P, k2_P, k3_P, k4_P;
 
                 // update rotation speed to those of gyro
-                Matrix<double,3,1>omega_b;
-                Eigen::Quaternion<double> attitude(X(9), X(6), X(7), X(8));
-                attitude.normalize();
-                Eigen::Matrix<double, 3, 3> rot_matrix = attitude.toRotationMatrix();
-                omega_b <<rocket_sensor.IMU_gyro.x-X(14), rocket_sensor.IMU_gyro.y-X(15), rocket_sensor.IMU_gyro.z-X(16);
-                X.segment(10,3) = rot_matrix*omega_b;
+                //Matrix<double,3,1>omega_b;
+                //Eigen::Quaternion<double> attitude(X(9), X(6), X(7), X(8));
+                //attitude.normalize();
+                //Eigen::Matrix<double, 3, 3> rot_matrix = attitude.toRotationMatrix();
+                //omega_b <<rocket_sensor.IMU_gyro.x-X(14), rocket_sensor.IMU_gyro.y-X(15), rocket_sensor.IMU_gyro.z-X(16);
+                //X.segment(10,3) = rot_matrix*omega_b;
 
                 //RK4 integration
         		fullDerivative(X, P, k1, k1_P);
@@ -685,6 +715,42 @@ class NavigationNode {
 
     }
 
+    void update_step_gyro(const sensor_data_gyro &z)
+    {
+        //propagate hdot autodiff scalar at current x
+        ADx = X;
+        ad_sensor_data_gyro hdot;
+        mesurementModelGyro(ADx, hdot);
+
+        //compute h(x)
+        sensor_data_gyro h_x;
+        mesurementModelGyro(X, h_x);
+
+        // obtain the jacobian of h(x)
+        for (int i = 0; i < hdot.size(); i++) {
+            H_gyro.row(i) = hdot(i).derivatives();
+        }
+
+
+        // compute EKF update
+        // taken from https://github.com/LA-EPFL/yakf/blob/master/ExtendedKalmanFilter.h
+        Eigen::Matrix<double, NX, NX> IKH;  // temporary matrix
+        Eigen::Matrix<double, NZGYRO, NZGYRO> S; // innovation covariance
+        Eigen::Matrix<double, NX, NZGYRO> K; // Kalman gain
+        Eigen::Matrix<double, NX, NX> I; // identity
+
+        I.setIdentity();
+        S = H_gyro * P * H_gyro.transpose() + R_gyro;
+        K = S.llt().solve(H_gyro * P).transpose();
+        X = X + K * (z - h_x);
+
+        //std::cout << H_gps << std::endl << std::endl;
+
+        IKH = (I - K * H_gyro);
+        P = IKH * P * IKH.transpose() + K * R_gyro * K.transpose();
+
+    }
+
     void update_step_mag(const sensor_data_mag &z)
     {
         //propagate hdot autodiff scalar at current x
@@ -769,6 +835,7 @@ class NavigationNode {
                 if(imu_flag){
                     update_step_baro(z_baro);
                     update_step_mag(mag_data);
+                    update_step_gyro(gyro_data);
                     imu_flag = false;
                 }
                 if(gps_flag){
@@ -784,6 +851,7 @@ class NavigationNode {
                 if(imu_flag){
                     update_step_baro(z_baro);
                     update_step_mag(mag_data);
+                    update_step_gyro(gyro_data);
                     imu_flag = false;
                 }
                 if(gps_flag){
