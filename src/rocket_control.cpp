@@ -107,37 +107,61 @@ class ControlNode {
         rocket_fsm.time_now = fsm->time_now;
       }
 
-      real_time_simulator::Control P_control()
-      {
+      //real_time_simulator::Control P_control()
+      //{
+        // Init control message
+       // real_time_simulator::Control control_law;
+        //geometry_msgs::Vector3 thrust_force;
+        //geometry_msgs::Vector3 thrust_torque;
+
+        //thrust_force.x = -200*rocket_state.twist.angular.y;
+        //thrust_force.y = -200*rocket_state.twist.angular.x;
+        //thrust_force.x = 0.0;
+        //thrust_force.y = 0.0;
+        //thrust_force.z = rocket.get_full_thrust(rocket_fsm.time_now);
+
+        //thrust_torque.x = thrust_force.y*rocket.total_CM;
+        //thrust_torque.y = thrust_force.x*rocket.total_CM; // might be a minus
+        //thrust_torque.z = -10*rocket_state.twist.angular.z;
+        //thrust_torque.z = 0.0;
+
+
+        //control_law.force = thrust_force;
+        //control_law.torque = thrust_torque;
+        //control_law.force.x = 0;
+        //control_law.force.y = 0;
+        //control_law.force.z = 0;
+
+          ///return control_law;
+      //}
+
+    real_time_simulator::Control P_control()
+    {
         // Init control message
         real_time_simulator::Control control_law;
         geometry_msgs::Vector3 thrust_force;
         geometry_msgs::Vector3 thrust_torque;
 
-        //thrust_force.x = -200*rocket_state.twist.angular.y;
-        //thrust_force.y = -200*rocket_state.twist.angular.x;
-        thrust_force.x = 0.0;
-        thrust_force.y = 0.0;
-        thrust_force.z = rocket.get_full_thrust(rocket_fsm.time_now);
+        static float angularX_sum = 0;
+        static float angularY_sum = 0;
 
-        thrust_torque.x = thrust_force.y*rocket.total_CM;
-        thrust_torque.y = thrust_force.x*rocket.total_CM; // might be a minus
-        //thrust_torque.z = -10*rocket_state.twist.angular.z;
-        thrust_torque.z = 0.0;
+        angularX_sum += rocket_state.twist.angular.x;
+        angularY_sum += rocket_state.twist.angular.y;
 
+
+        thrust_force.x = 0;
+        thrust_force.y = 0;
+        thrust_force.z = 10*(20-rocket_state.pose.position.z) + 9.81*(rocket_state.propeller_mass+rocket.dry_mass) - 10*rocket_state.twist.linear.z;
+
+        thrust_torque.x = 2*rocket_state.twist.linear.y - 100*rocket_state.twist.angular.x;
+        thrust_torque.y = -2*rocket_state.twist.linear.x - 100*rocket_state.twist.angular.y;
+        thrust_torque.z = -10*rocket_state.twist.angular.z;
 
         control_law.force = thrust_force;
         control_law.torque = thrust_torque;
-        //control_law.force.x = 0;
-        //control_law.force.y = 0;
-        //control_law.force.z = 0;
 
-
-
-
-
-          return control_law;
-      }
+        return control_law;
+    }
 
 
       void updateControl()

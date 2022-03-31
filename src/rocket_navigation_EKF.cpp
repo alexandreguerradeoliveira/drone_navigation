@@ -164,7 +164,7 @@ class NavigationNode {
 
 
 
-    /// EKF matrices
+        /// EKF matrices
 
         // Predition matrices
         state_matrix F;
@@ -178,15 +178,10 @@ class NavigationNode {
         Matrix<double,NZACC,NX> H_acc; // computed using autodiff
         Matrix<double,NZGYRO,NX> H_gyro; // computed using autodiff
 
-
-
-
-    // Kalman state
+        // Kalman state
 		state X;
 		ad_state ADx; // state used for autodiff
-		
-		
-		
+
 		/// Fake GPS
 		// Last received fake GPS data
 		Eigen::Matrix<double, 3, 1> gps_pos;
@@ -497,6 +492,7 @@ class NavigationNode {
 
         Eigen::Matrix<T, 3, 1> omega;
         omega << x(10),x(11),x(12);
+        omega = rot_matrix.transpose()*omega;
 
         // Angular velocity omega in quaternion format to compute quaternion derivative
         Eigen::Quaternion<T> omega_quat(0.0, x(10), x(11), x(12));
@@ -519,7 +515,6 @@ class NavigationNode {
         xdot.segment(6, 4) =  0.5*(attitude*omega_quat).coeffs();
 
         // Angular speed variation is given by euler's equation if in body frame
-        //xdot.segment(10, 3) = I_inv( -omega*(I*omega) + total_torque_body); // in body frame
         //xdot.segment(10, 3) = rot_matrix*(I_inv*( -omega.cross(I*omega) + total_torque_body)); // in inertial frame
         xdot.segment(10, 3) = rot_matrix*(total_torque_body - omega.cross(I.template cast<T>().cwiseProduct(omega))).cwiseProduct(I_inv.template cast<T>());
 
@@ -608,7 +603,6 @@ class NavigationNode {
         		}
 
         		Pdot = F * P + P * F.transpose() + Q;
-
         }
 		
 
@@ -616,13 +610,13 @@ class NavigationNode {
         		state k1, k2, k3, k4;
         		state_matrix k1_P, k2_P, k3_P, k4_P;
 
-                // update rotation speed to those of gyro
-                //Matrix<double,3,1>omega_b;
-                //Eigen::Quaternion<double> attitude(X(9), X(6), X(7), X(8));
-                //attitude.normalize();
-                //Eigen::Matrix<double, 3, 3> rot_matrix = attitude.toRotationMatrix();
-                //omega_b <<rocket_sensor.IMU_gyro.x-X(14), rocket_sensor.IMU_gyro.y-X(15), rocket_sensor.IMU_gyro.z-X(16);
-                //X.segment(10,3) = rot_matrix*omega_b;
+                 //update rotation speed to those of gyro
+                Matrix<double,3,1>omega_b;
+                Eigen::Quaternion<double> attitude(X(9), X(6), X(7), X(8));
+                attitude.normalize();
+                Eigen::Matrix<double, 3, 3> rot_matrix = attitude.toRotationMatrix();
+                omega_b <<rocket_sensor.IMU_gyro.x-X(14), rocket_sensor.IMU_gyro.y-X(15), rocket_sensor.IMU_gyro.z-X(16);
+                X.segment(10,3) = rot_matrix*omega_b;
 
                 //RK4 integration
         		fullDerivative(X, P, k1, k1_P);
@@ -732,6 +726,8 @@ class NavigationNode {
         }
 
 
+        std::cout << "done " << std::endl;
+
         // compute EKF update
         // taken from https://github.com/LA-EPFL/yakf/blob/master/ExtendedKalmanFilter.h
         Eigen::Matrix<double, NX, NX> IKH;  // temporary matrix
@@ -835,7 +831,7 @@ class NavigationNode {
                 if(imu_flag){
                     update_step_baro(z_baro);
                     update_step_mag(mag_data);
-                    update_step_gyro(gyro_data);
+                    //update_step_gyro(gyro_data);
                     imu_flag = false;
                 }
                 if(gps_flag){
@@ -843,7 +839,6 @@ class NavigationNode {
                     gps_flag = false;
                 }
                 predict_step();
-
             }
 
 			else if (rocket_fsm.state_machine.compare("Coast") == 0)
@@ -851,7 +846,7 @@ class NavigationNode {
                 if(imu_flag){
                     update_step_baro(z_baro);
                     update_step_mag(mag_data);
-                    update_step_gyro(gyro_data);
+                    //update_step_gyro(gyro_data);
                     imu_flag = false;
                 }
                 if(gps_flag){
@@ -880,13 +875,14 @@ class NavigationNode {
 			rocket_state.twist.angular.x = X(10);
 			rocket_state.twist.angular.y = X(11);
 			rocket_state.twist.angular.z = X(12);
-            //std::cout<< X.segment(14+9,1)<< std::endl<< std::endl;
 
 			rocket_state.propeller_mass = X(13);
 
 			nav_pub.publish(rocket_state);
 
             real_time_simulator::StateCovariance state_covariance;
+
+            //std::cout << "kal: "<< X(10) << " " << X(11) << " " << X(12) << std::endl;
 
             //std::vector<Vector3d> P_vec(NX*NX);
             Matrix<double,NX,1> P_diag;
