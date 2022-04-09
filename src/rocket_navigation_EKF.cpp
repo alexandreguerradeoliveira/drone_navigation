@@ -26,7 +26,13 @@
 #include "real_time_simulator/StateCovariance.h"
 
 
+#include "geometry_msgs/PoseStamped.h"
 #include "geometry_msgs/Vector3.h"
+
+#include "sensor_msgs/Imu.h"
+#include "sensor_msgs/MagneticField.h"
+#include "sensor_msgs/NavSatFix.h"
+
 
 #include <time.h>
 #include <sstream>
@@ -56,10 +62,11 @@ using namespace Eigen;
 
 class NavigationNode {
 	public:
-    const float dt_ros = 0.005;
+        const float dt_ros = 0.005;
+        const int simulation = 1; // 1=runs in simulation (SIL), 0=runs on drone with optitrack
+        const int use_gps = 0; // 0=use optitrack, 1=use px4 gps
 
-
-    static const int NX = 33;
+        static const int NX = 33;
 
 		static const int NZBARO = 1;
         static const int NZGPS = 6;
@@ -67,6 +74,7 @@ class NavigationNode {
         static const int NZACC = 3;
         static const int NZGYRO = 3;
         static const int NZFAKESENSOR= 3;
+        static const int NZOPTITRACK = 3;
 
 
 
@@ -113,7 +121,11 @@ class NavigationNode {
         using sensor_data_fsen = sensor_data_fsen_t<double>;
         using ad_sensor_data_fsen = sensor_data_fsen_t<AutoDiffScalar<state_t<double>>>;// Autodiff sensor variable fake sensor
 
-
+        // Autodiff for optitrack
+        template<typename scalar_t>
+        using sensor_data_optitrack_t = Eigen::Matrix<scalar_t, NZOPTITRACK, 1>;
+        using sensor_data_optitrack = sensor_data_optitrack_t<double>;
+        using ad_sensor_data_optitrack = sensor_data_optitrack_t<AutoDiffScalar<state_t<double>>>;// Autodiff sensor variable optitrack
 
     // Sensor mesurement model matrices
 
@@ -124,19 +136,19 @@ class NavigationNode {
         typedef Eigen::Matrix<double, NZACC, NZACC> sensor_matrix_acc;
         typedef Eigen::Matrix<double, NZGYRO, NZGYRO> sensor_matrix_gyro;
         typedef Eigen::Matrix<double, NZFAKESENSOR, NZFAKESENSOR> sensor_matrix_fsen;
+        typedef Eigen::Matrix<double, NZOPTITRACK, NZOPTITRACK> sensor_matrix_optitrack;
+
 
     /// AUTODIFF stuff end
 
 	private:
-        // sensor received flag
-        //bool imu_flag = false;
-        //bool gps_flag = false;
 
         sensor_data_gps gps_data;
         sensor_data_baro z_baro;
         sensor_data_mag mag_data;
         sensor_data_gyro gyro_data;
         sensor_data_fsen fsen_data;
+        sensor_data_optitrack optitrack_data;
 
 
     // Class with useful rocket parameters and methods
@@ -160,15 +172,22 @@ class NavigationNode {
 		ros::Subscriber rocket_state_sub;
 		ros::Subscriber sensor_sub;
         ros::Subscriber gps_sub;
+        ros::Subscriber optitrack_sub;
+        ros::Subscriber px4_imu_sub;
+        ros::Subscriber px4_mag_sub;
+        ros::Subscriber px4_gps_sub;
 
 
-        // Kalman matrix
+
+    // Kalman matrix
         sensor_matrix_baro R_baro;
         sensor_matrix_gps R_gps;
         sensor_matrix_mag R_mag;
         sensor_matrix_acc R_acc;
         sensor_matrix_gyro R_gyro;
         sensor_matrix_fsen R_fsen;
+        sensor_matrix_optitrack R_optitrack;
+
 
 
     /// EKF matrices
@@ -185,6 +204,8 @@ class NavigationNode {
         Matrix<double,NZACC,NX> H_acc; // computed using autodiff
         Matrix<double,NZGYRO,NX> H_gyro; // computed using autodiff
         Matrix<double,NZFAKESENSOR,NX> H_fsen; // computed using autodiff
+        Matrix<double,NZOPTITRACK,NX> H_optitrack; // computed using autodiff
+
 
 
     // Kalman state
@@ -195,6 +216,7 @@ class NavigationNode {
 		// Last received fake GPS data
 		Eigen::Matrix<double, 3, 1> gps_pos;
         Eigen::Matrix<double, 3, 1> gps_vel;
+
 
         double gps_freq = 10;
 
@@ -212,6 +234,16 @@ class NavigationNode {
     // end fakegps
 
     float dry_mass;
+
+    int gps_started = 0; // autmatically set to 0 once gps fix arrives
+    float kx = 0;
+    float ky = 0;
+    float gps_latitude0 = 0;
+    float gps_longitude0 = 0;
+    float gps_alt0 = 0;
+    float gps_latitude = 0;
+    float gps_longitude = 0;
+    float gps_alt = 0;
 
 
 public:
@@ -277,6 +309,9 @@ public:
             R_fsen.setIdentity();
             R_fsen = R_fsen*10;
 
+            R_optitrack.setIdentity();
+            R_optitrack = R_optitrack*0.0001;
+
             P.setZero(); // no error in the initial state
 
             // process covariance matrix
@@ -309,6 +344,30 @@ public:
 
 		void initTopics(ros::NodeHandle &nh) 
 		{
+
+            if(simulation==1){
+                // Subscribe to sensor for kalman correction
+                sensor_sub = nh.subscribe("sensor_pub", 1, &NavigationNode::sensorCallback, this);
+
+                // Subscribe to state to fake GPS
+                gps_sub = nh.subscribe("rocket_state", 1, &NavigationNode::gpsCallback, this);
+            }else{
+
+                px4_imu_sub = nh.subscribe("/mavros/imu/data_raw", 1, &NavigationNode::px4imuCallback, this);
+
+                px4_mag_sub = nh.subscribe("/mavros/imu/mag", 1, &NavigationNode::px4magCallback, this);
+
+                if(use_gps==1){
+                    px4_gps_sub = nh.subscribe("/mavros/global_position/raw/fix", 1, &NavigationNode::px4gpsCallback, this);
+                }else{
+                    optitrack_sub = nh.subscribe("/optitrack_client/Drone/optitrack_pose", 1, &NavigationNode::optitrackCallback, this);
+                }
+
+
+            }
+
+
+
 			// Create filtered rocket state publisher
 			nav_pub = nh.advertise<real_time_simulator::State>("kalman_rocket_state", 1);
 
@@ -321,14 +380,12 @@ public:
 			// Subscribe to control for kalman estimator
 			control_sub = nh.subscribe("control_measured", 1, &NavigationNode::controlCallback, this);
 
-			// Subscribe to sensor for kalman correction
-			sensor_sub = nh.subscribe("sensor_pub", 1, &NavigationNode::sensorCallback, this);
-
-            // Subscribe to state to fake GPS
-            gps_sub = nh.subscribe("rocket_state", 1, &NavigationNode::gpsCallback, this);
 		}
 
 		/* ------------ Callbacks functions ------------ */
+
+
+
 
 		// Callback function to store last received fsm
 		void fsmCallback(const real_time_simulator::FSM::ConstPtr& fsm)
@@ -343,6 +400,54 @@ public:
 			rocket_control.torque = control->torque;
 			rocket_control.force = control->force;
 		}
+
+        void px4imuCallback(const sensor_msgs::Imu::ConstPtr& sensor)
+        {
+            rocket_sensor.IMU_acc = sensor->linear_acceleration;
+            rocket_sensor.IMU_gyro = sensor->angular_velocity;
+        }
+
+        void px4magCallback(const sensor_msgs::MagneticField::ConstPtr& sensor)
+        {
+            rocket_sensor.IMU_mag = sensor->magnetic_field;
+
+            if(rocket_fsm.state_machine.compare("Coast") == 0||rocket_fsm.state_machine.compare("Launch") == 0||rocket_fsm.state_machine.compare("Rail") == 0)
+            {
+                predict_step();
+                update_step_mag(mag_data);
+            }
+        }
+
+        void px4gpsCallback(const sensor_msgs::NavSatFix::ConstPtr& gps)
+        {
+            gps_latitude = gps->latitude;
+            gps_longitude = gps->longitude;
+            gps_alt = gps->altitude;
+
+            // setup origin for gps
+            if(gps_started==0){
+                gps_latitude0 = gps_latitude;
+                gps_longitude0 = gps_longitude;
+                gps_alt0 = gps_alt;
+
+                latlongtometercoeffs(gps_latitude0,kx,ky);
+                gps_started = 1;
+            }
+
+//            float gps_x = (gps_latitude-gps_latitude0)*kx;
+//            float gps_y = (gps_longitude-gps_longitude0)*ky;
+//            float gps_z = (gps_alt-gps_alt0);
+            gps_pos << (gps_latitude-gps_latitude0)*kx,(gps_longitude-gps_longitude0)*ky,(gps_alt-gps_alt0);
+
+
+//
+//            if(rocket_fsm.state_machine.compare("Coast") == 0||rocket_fsm.state_machine.compare("Launch") == 0||rocket_fsm.state_machine.compare("Rail") == 0)
+//            {
+//                predict_step();
+//                update_step_gps_pos(gps_pos);
+//            }
+        }
+
 
 		// Callback function to store last received sensor data
 		void sensorCallback(const real_time_simulator::Sensor::ConstPtr& sensor)
@@ -365,6 +470,16 @@ public:
 
 
 		}
+
+        void optitrackCallback(const geometry_msgs::PoseStamped::ConstPtr &pose) {
+            optitrack_data << pose->pose.position.x, pose->pose.position.y, pose->pose.position.z;
+
+            if(rocket_fsm.state_machine.compare("Coast") == 0||rocket_fsm.state_machine.compare("Launch") == 0||rocket_fsm.state_machine.compare("Rail") == 0)
+            {
+                predict_step();
+                update_step_optitrack(optitrack_data);
+            }
+        }
 		
 		// Callback function to fake gps with sensor data !
         void gpsCallback(const real_time_simulator::State::ConstPtr& state)
@@ -574,6 +689,11 @@ public:
         }
 
         template<typename T>
+        void mesurementModelOptitrack(const state_t<T> &x, sensor_data_optitrack_t<T> &z) {
+            z = x.segment(0,3);
+        }
+
+        template<typename T>
         void mesurementModelMag(const state_t<T> &x, sensor_data_mag_t<T> &z) {
             // get rotation matrix
             Eigen::Quaternion<T> attitude(x(9), x(6), x(7), x(8));
@@ -757,6 +877,39 @@ public:
 
     }
 
+    void update_step_optitrack(const sensor_data_optitrack &z)
+    {
+        //propagate hdot autodiff scalar at current x
+        ADx = X;
+        ad_sensor_data_optitrack hdot;
+        mesurementModelOptitrack(ADx, hdot);
+
+        //compute h(x)
+        sensor_data_optitrack h_x;
+        mesurementModelOptitrack(X, h_x);
+
+        // obtain the jacobian of h(x)
+        for (int i = 0; i < hdot.size(); i++) {
+            H_optitrack.row(i) = hdot(i).derivatives();
+        }
+
+        // compute EKF update
+        // taken from https://github.com/LA-EPFL/yakf/blob/master/ExtendedKalmanFilter.h
+        Eigen::Matrix<double, NX, NX> IKH;  // temporary matrix
+        Eigen::Matrix<double, NZOPTITRACK, NZOPTITRACK> S; // innovation covariance
+        Eigen::Matrix<double, NX, NZOPTITRACK> K; // Kalman gain
+        Eigen::Matrix<double, NX, NX> I; // identity
+
+        I.setIdentity();
+        S = H_optitrack * P * H_optitrack.transpose() + R_optitrack;
+        K = S.llt().solve(H_optitrack * P).transpose();
+        X = X + K * (z - h_x);
+
+        IKH = (I - K * H_optitrack);
+        P = IKH * P * IKH.transpose() + K * R_optitrack * K.transpose();
+
+    }
+
     void update_step_fsen(const sensor_data_fsen &z)
     {
         //propagate hdot autodiff scalar at current x
@@ -895,15 +1048,16 @@ public:
 
     }
 
+    void latlongtometercoeffs(float lat0,float &kx,float &ky){
+        kx = 111132.92-559.82*cos(2*lat0)+1.175*cos(4*lat0)-0.0023*cos(6*lat0); // meters per degree of latt
+        ky = 111412.84*cos(lat0)-93.5*cos(3*lat0)+0.118*cos(5*lat0);
+    }
+
 		void updateNavigation()
 		{
 			// ----------------- State machine -----------------
-			if (rocket_fsm.state_machine.compare("Idle") == 0)
-			{
-				// Do nothing
-			}
 
-			else if (rocket_fsm.state_machine.compare("Launch") == 0 || rocket_fsm.state_machine.compare("Rail") == 0||rocket_fsm.state_machine.compare("Coast") == 0)
+			if (rocket_fsm.state_machine.compare("Launch") == 0 || rocket_fsm.state_machine.compare("Rail") == 0||rocket_fsm.state_machine.compare("Coast") == 0)
 			{
                 predict_step();
 
