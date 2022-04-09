@@ -56,20 +56,21 @@ using namespace Eigen;
 
 class NavigationNode {
 	public:
-		static const int NX = 33;
+    const float dt_ros = 0.005;
+
+
+    static const int NX = 33;
 
 		static const int NZBARO = 1;
         static const int NZGPS = 6;
         static const int NZMAG = 3;
         static const int NZACC = 3;
         static const int NZGYRO = 3;
+        static const int NZFAKESENSOR= 3;
 
 
 
-    //static const int NZOT = 10;
-		
-		
-		/// AUTODIFF stuff
+    /// AUTODIFF stuff
         // Autodiff for state
     	template<typename scalar_t>
     	using state_t = Eigen::Matrix<scalar_t, NX, 1>;
@@ -106,8 +107,15 @@ class NavigationNode {
         using sensor_data_gyro = sensor_data_gyro_t<double>;
         using ad_sensor_data_gyro = sensor_data_gyro_t<AutoDiffScalar<state_t<double>>>;// Autodiff sensor variable gyroscope
 
+        // Autodiff for gyroscope
+        template<typename scalar_t>
+        using sensor_data_fsen_t = Eigen::Matrix<scalar_t, NZFAKESENSOR, 1>;
+        using sensor_data_fsen = sensor_data_fsen_t<double>;
+        using ad_sensor_data_fsen = sensor_data_fsen_t<AutoDiffScalar<state_t<double>>>;// Autodiff sensor variable fake sensor
 
-        // Sensor mesurement model matrices
+
+
+    // Sensor mesurement model matrices
 
     	typedef Eigen::Matrix<double, NX, NX> state_matrix;
     	typedef Eigen::Matrix<double, NZBARO, NZBARO> sensor_matrix_baro;
@@ -115,21 +123,20 @@ class NavigationNode {
         typedef Eigen::Matrix<double, NZMAG, NZMAG> sensor_matrix_mag;
         typedef Eigen::Matrix<double, NZACC, NZACC> sensor_matrix_acc;
         typedef Eigen::Matrix<double, NZGYRO, NZGYRO> sensor_matrix_gyro;
-
-
+        typedef Eigen::Matrix<double, NZFAKESENSOR, NZFAKESENSOR> sensor_matrix_fsen;
 
     /// AUTODIFF stuff end
 
 	private:
         // sensor received flag
-        bool imu_flag = false;
-        bool gps_flag = false;
+        //bool imu_flag = false;
+        //bool gps_flag = false;
 
         sensor_data_gps gps_data;
         sensor_data_baro z_baro;
         sensor_data_mag mag_data;
         sensor_data_gyro gyro_data;
-
+        sensor_data_fsen fsen_data;
 
 
     // Class with useful rocket parameters and methods
@@ -160,11 +167,11 @@ class NavigationNode {
         sensor_matrix_gps R_gps;
         sensor_matrix_mag R_mag;
         sensor_matrix_acc R_acc;
-        sensor_matrix_acc R_gyro;
+        sensor_matrix_gyro R_gyro;
+        sensor_matrix_fsen R_fsen;
 
 
-
-        /// EKF matrices
+    /// EKF matrices
 
         // Predition matrices
         state_matrix F;
@@ -177,23 +184,37 @@ class NavigationNode {
         Matrix<double,NZMAG,NX> H_mag; // computed using autodiff
         Matrix<double,NZACC,NX> H_acc; // computed using autodiff
         Matrix<double,NZGYRO,NX> H_gyro; // computed using autodiff
+        Matrix<double,NZFAKESENSOR,NX> H_fsen; // computed using autodiff
 
-        // Kalman state
-		state X;
+
+    // Kalman state
+		state X , Z_fakesensor;
 		ad_state ADx; // state used for autodiff
 
 		/// Fake GPS
 		// Last received fake GPS data
 		Eigen::Matrix<double, 3, 1> gps_pos;
         Eigen::Matrix<double, 3, 1> gps_vel;
-		double gps_noise_xy = .3;
-		double gps_noise_z = .3;
-		double gps_freq = 10;	
-		double gps_noise_xy_vel = .3;
-		double gps_noise_z_vel = .3;
-		// end fakegps
-	
-	public:
+
+        double gps_freq = 10;
+
+        //double gps_noise_xy = .8;
+        //double gps_noise_z = .6;
+		//double gps_noise_xy_vel = .2;
+		//double gps_noise_z_vel = .2;
+
+
+        double gps_noise_xy = .008;
+        double gps_noise_z = .06;
+        double gps_noise_xy_vel = .008;
+        double gps_noise_z_vel = .06;
+
+    // end fakegps
+
+    float dry_mass;
+
+
+public:
 		NavigationNode(ros::NodeHandle nh)
 		{
 			// Initialize publishers and subscribers
@@ -212,7 +233,10 @@ class NavigationNode {
 			nh.getParam("/environment/rail_zenith", zenith);
 			nh.getParam("/environment/rail_azimuth", azimuth);
 
-			roll *= DEG2RAD; zenith *= DEG2RAD; azimuth *= DEG2RAD;
+            nh.getParam("/rocket/dry_mass", dry_mass);
+
+
+            roll *= DEG2RAD; zenith *= DEG2RAD; azimuth *= DEG2RAD;
 
 			typedef Eigen::EulerSystem<-Eigen::EULER_Z, Eigen::EULER_Y, Eigen::EULER_Z> Rail_system;
 			typedef Eigen::EulerAngles<double, Rail_system> angle_type;
@@ -222,7 +246,6 @@ class NavigationNode {
 			Eigen::Quaterniond q(init_angle);
 
 			/// Init state X
-			//X << 0, 0, 0,   0, 0, 0,     0.0, 0.0 , 0.0 , 1.0 ,     0.0, 0.0, 0.0,    rocket.propellant_mass;
             X.setZero();
             X(13) = rocket.propellant_mass;
 			X.segment(6,4) = q.coeffs();
@@ -230,38 +253,48 @@ class NavigationNode {
 
             /// Initialize kalman parameters
             // sensor covarience matrices
-            R_baro(0,0) = 0.1;
+            R_baro(0,0) = 0.001*0.001;
 
             R_gps.setIdentity();
-            R_gps = R_gps*0.3;
+
+            //R_gps = R_gps*0.8*0.8;
+            //R_gps(2,2) = 0.6*0.6;
+            //R_gps.block(3,3,3,3) =Eigen::Matrix<double, 3, 3>::Identity(3, 3) * 0.2*0.2;
+
+            R_gps = R_gps*0.008*0.008;
+            R_gps(2,2) = 0.06*0.06;
+            R_gps.block(3,3,3,3) =Eigen::Matrix<double, 3, 3>::Identity(3, 3) * 0.02*0.02;
+
 
             R_mag.setIdentity();
-            R_mag = R_mag*0.001;
+            R_mag = R_mag*0.1*0.1;
 
             R_gyro.setIdentity();
-            R_gyro = R_gyro*0.001;
+            R_gyro = R_gyro*0.001*0.001;
 
-            R_acc.setIdentity()*100;
+            R_acc.setIdentity();
+
+            R_fsen.setIdentity();
+            R_fsen = R_fsen*10;
 
             P.setZero(); // no error in the initial state
 
             // process covariance matrix
 			Q.setIdentity();
-            Q = Q*0.000000001;
-            Q(0,0) = 0.2;
-            Q(1,1) = 0.2;
-            Q(2,2) = 0.2;
+            Q = Q*0.000000000;
+            Q.block(0,0,3,3) = Eigen::Matrix<double, 3, 3>::Identity(3, 3)*0.000003*dt_ros;
+            Q(2,2) = 1*dt_ros;
+            Q.block(3,3,3,3) = Eigen::Matrix<double, 3, 3>::Identity(3, 3)*0.000001*dt_ros;
+            Q(5,5) = 1*dt_ros;
 
-            Q(3,3) = 0.2;
-            Q(4,4) = 0.2;
-            Q(5,5) = 0.2;
 
-            Q(6,6) = 0.00001;
-            Q(7,7) = 0.00001;
-            Q(8,8) = 0.00000001;
-            Q(9,9) = 0.00000001;
+            Q(6,6) = 0.0000001;
+            Q(7,7) = 0.0000001;
+            Q(8,8) = 0.000000001;
+            Q(9,9) = 0.000000001;
 
-            Q(13,13) = 0.00025;
+            Q.block(10,10,3,3) =  Eigen::Matrix<double, 3, 3>::Identity(3, 3)*0.001*0.001;
+            Q.block(24,24,6,6) =Eigen::Matrix<double, 6, 6>::Identity(6, 6) * 0;
 
 
             // Init derivatives
@@ -277,10 +310,10 @@ class NavigationNode {
 		void initTopics(ros::NodeHandle &nh) 
 		{
 			// Create filtered rocket state publisher
-			nav_pub = nh.advertise<real_time_simulator::State>("kalman_rocket_state", 10);
+			nav_pub = nh.advertise<real_time_simulator::State>("kalman_rocket_state", 1);
 
             // Create state covarience publisher
-            cov_pub = nh.advertise<real_time_simulator::StateCovariance>("state_covariance", 10);
+            cov_pub = nh.advertise<real_time_simulator::StateCovariance>("state_covariance", 1);
 
 			// Subscribe to time_keeper for fsm and time
 			fsm_sub = nh.subscribe("gnc_fsm_pub", 1, &NavigationNode::fsmCallback, this);
@@ -314,28 +347,22 @@ class NavigationNode {
 		// Callback function to store last received sensor data
 		void sensorCallback(const real_time_simulator::Sensor::ConstPtr& sensor)
 		{
-			rocket_sensor.IMU_acc = sensor->IMU_acc;
-			rocket_sensor.IMU_gyro = sensor->IMU_gyro;
+            rocket_sensor.IMU_acc = sensor->IMU_acc;
+            rocket_sensor.IMU_gyro = sensor->IMU_gyro;
 			rocket_sensor.IMU_mag = sensor->IMU_mag;
-			
 			rocket_sensor.baro_height = sensor->baro_height;
 
             z_baro(0) = rocket_sensor.baro_height;
-
             mag_data << rocket_sensor.IMU_mag.x,rocket_sensor.IMU_mag.y,rocket_sensor.IMU_mag.z;
-
             gyro_data << rocket_sensor.IMU_gyro.x,rocket_sensor.IMU_gyro.y,rocket_sensor.IMU_gyro.z;
-            //sensor_data_acc acc_data;
-            //acc_data << rocket_sensor.IMU_acc.x,rocket_sensor.IMU_acc.y,rocket_sensor.IMU_acc.z;
 
-            //double g0 = 9.81;  // Earth gravity in [m/s^2]
-            //if(((acc_data).norm()<=1.1*g0)&&((acc_data).norm()>=0.9*g0)){
-            //    std::cout << "updating with acc" << std::endl;
-            //    std::cout << acc_data << std::endl;
-            //    update_step_acc(acc_data);
-            //}
+            if(rocket_fsm.state_machine.compare("Coast") == 0||rocket_fsm.state_machine.compare("Launch") == 0||rocket_fsm.state_machine.compare("Rail") == 0)
+            {
+                predict_step();
+                update_step_baro(z_baro);
+                update_step_mag(mag_data);
+            }
 
-            imu_flag = true;
 
 		}
 		
@@ -349,7 +376,7 @@ class NavigationNode {
             double dT_gps = ros::Time::now().toSec() - last_predict_time_gps;
 			
 			if(dT_gps>=1/gps_freq){
-			gps_pos << state->pose.position.x,state->pose.position.y,state->pose.position.z;
+			            gps_pos << state->pose.position.x,state->pose.position.y,state->pose.position.z;
                         gps_vel << state->twist.linear.x,state->twist.linear.y,state->twist.linear.z;
 
                         // construct a trivial random generator engine from a time-based seed:
@@ -370,7 +397,10 @@ class NavigationNode {
                         gps_data.segment(0,3) = gps_pos;
                         gps_data.segment(3,3) = gps_vel;
 
-                        gps_flag = true;
+                        if(rocket_fsm.state_machine.compare("Coast") == 0||rocket_fsm.state_machine.compare("Launch") == 0||rocket_fsm.state_machine.compare("Rail") == 0){
+                            predict_step();
+                            update_step_gps(gps_data);
+                        }
 
 			            last_predict_time_gps = ros::Time::now().toSec();
 
@@ -410,6 +440,9 @@ class NavigationNode {
             Matrix<T, 3, 1> I;
             I<< rocket.total_Inertia[0], rocket.total_Inertia[1],rocket.total_Inertia[2];
 
+            Eigen::Matrix<T, 3, 1> dist_force;
+            dist_force << x(24),x(25),x(26);
+
             Eigen::Matrix<T, 3, 1> dist_torque;
             dist_torque << x(27),x(28),x(29);
 
@@ -419,8 +452,7 @@ class NavigationNode {
 
             Eigen::Matrix<T, 3, 1> omega;
             omega << rocket_sensor.IMU_gyro.x-x(14), rocket_sensor.IMU_gyro.y-x(15), rocket_sensor.IMU_gyro.z-x(16);
-            //omega << x(10),x(11),x(12);
-            //omega = rot_matrix.transpose()*omega;
+
 
             // -------------- Differential equation ---------------------
 
@@ -428,22 +460,18 @@ class NavigationNode {
 			xdot.head(3) = x.segment(3,3);
 
 			// Speed variation is acceleration
-			xdot.segment(3,3) =  rot_matrix*IMU_acc - Eigen::Vector3d::UnitZ().template cast<T>() *g0;
+			xdot.segment(3,3) =  rot_matrix*IMU_acc - Eigen::Vector3d::UnitZ().template cast<T>() *g0 +(dist_force)/(dry_mass+x(13));
 
 			// Quaternion variation is 0.5*q*omega_quat if omega is in the body frame
             xdot.segment(6, 4) =  0.5*(attitude*omega_quat).coeffs();
-            //xdot.segment(6, 4) =  0.5*(omega_quat*attitude).coeffs(); // inertial frame
 
 			// Angular speed
             xdot.segment(10, 3) = rot_matrix*(total_torque_body - omega.cross(I.template cast<T>().cwiseProduct(omega))).cwiseProduct(I_inv.template cast<T>());
 
 
-			// Mass variation is proportional to total thrust (! autodiff .norm() gives nan)
-            if(rocket_force.template cast<T>().norm()<0.01){
-                xdot(13) = -(rocket_force.template cast<T>()(2))/((T)rocket.Isp*g0);
-            }else{
-                xdot(13) = -(rocket_force.template cast<T>().norm())/((T)rocket.Isp*g0);
-            }
+			// Mass variation
+            xdot(13) = 0;
+
 
             //Bias for gyroscope, accelerometer, magnetometer, barometer - bias variation follows a static update
             xdot.segment(14, 10) << 0, 0, 0,  0, 0, 0,  0, 0, 0,  0;
@@ -484,7 +512,7 @@ class NavigationNode {
 
         // compute total force inertial frame
         Eigen::Matrix<T, 3, 1> total_force_inertial;
-        total_force_inertial = rot_matrix*(control_force) - Eigen::Vector3d::UnitZ().template cast<T>()*x(13)*g0 + dist_force;
+        total_force_inertial = rot_matrix*(control_force) - Eigen::Vector3d::UnitZ().template cast<T>()*(x(13)+dry_mass)*g0 + dist_force;
 
         // compute total torque in body frame
         Eigen::Matrix<T, 3, 1> total_torque_body;
@@ -509,22 +537,22 @@ class NavigationNode {
         xdot.head(3) = x.segment(3,3);
 
         // Speed variation is acceleration given by newton's law
-        xdot.segment(3,3) =  total_force_inertial/x(13);
+        xdot.segment(3,3) =  total_force_inertial/(x(13)+dry_mass);
 
         // Quaternion variation is 0.5*q*omega_quat if omega is in the body frame
         xdot.segment(6, 4) =  0.5*(attitude*omega_quat).coeffs();
 
         // Angular speed variation is given by euler's equation if in body frame
-        //xdot.segment(10, 3) = rot_matrix*(I_inv*( -omega.cross(I*omega) + total_torque_body)); // in inertial frame
         xdot.segment(10, 3) = rot_matrix*(total_torque_body - omega.cross(I.template cast<T>().cwiseProduct(omega))).cwiseProduct(I_inv.template cast<T>());
 
 
         // Mass variation is proportional to total thrust (! autodiff .norm() gives nan)
-        if(control_force.template cast<T>().norm()<0.01){
-            xdot(13) = -(control_force.template cast<T>()(2))/((T)rocket.Isp*g0);
-        }else{
-            xdot(13) = -(control_force.template cast<T>().norm())/((T)rocket.Isp*g0);
-        }
+        //if(control_force.template cast<T>().norm()<0.01){
+        //    xdot(13) = -(control_force.template cast<T>()(2))/((T)rocket.Isp*g0);
+        //}else{
+        //    xdot(13) = -(control_force.template cast<T>().norm())/((T)rocket.Isp*g0);
+        //}
+        xdot(13) = 0;
 
         //Bias for gyroscope, accelerometer, magnetometer, barometer - bias variation follows a static update
         xdot.segment(14, 10) << 0, 0, 0,  0, 0, 0,  0, 0, 0,  0;
@@ -563,15 +591,28 @@ class NavigationNode {
             Eigen::Quaternion<T> attitude(x(9), x(6), x(7), x(8));
             attitude.normalize();
             Eigen::Matrix<T, 3, 3> rot_matrix = attitude.toRotationMatrix();
-            Eigen::Matrix<T, 3, 1> gravity_vec = Eigen::Vector3d::UnitZ().template cast<T>() *(-g0);
+
+            Eigen::Matrix<T, 3, 1> control_force;
+            control_force << rocket_control.force.x, rocket_control.force.y, rocket_control.force.z;
+
+            Eigen::Matrix<T, 3, 1> dist_force;
+            dist_force << x(24),x(25),x(26);
+
+            Eigen::Matrix<T, 3, 1> total_force_inertial;
+            total_force_inertial = rot_matrix*(control_force) - Eigen::Vector3d::UnitZ().template cast<T>()*(x(13)+dry_mass)*g0 + dist_force;
 
             // express inertial magnetic vector estimate in body-frame and add bias
-            z = rot_matrix.transpose()*(gravity_vec) + x.segment(17,3);
+            z = rot_matrix.transpose()*(total_force_inertial/(dry_mass+x(13))) + x.segment(17,3);
     }
 
         template<typename T>
         void mesurementModelGPS(const state_t<T> &x, sensor_data_gps_t<T> &z) {
             z = x.segment(0,6);
+        }
+
+        template<typename T>
+        void mesurementModelFakeSensor(const state_t<T> &x, sensor_data_fsen_t<T> &z) {
+            z = x.segment(3,3);
         }
 
         template<typename T>
@@ -626,15 +667,26 @@ class NavigationNode {
 
                 Xnext = X + (k1 + 2 * k2 + 2 * k3 + k4) * dT / 6;
                 Pnext = P + (k1_P + 2 * k2_P + 2 * k3_P + k4_P) * dT / 6;
-
-
         }
 
+    void RK4_fakesensor(const double dT,state &X,state &Xnext) {
+        state k1, k2, k3, k4, Xinter;
+
+        state_dynamics_forcemodel(X, k1);Xinter = X + k1 * dT / 2;
+        state_dynamics_forcemodel( Xinter, k2);Xinter = X + k2 * dT / 2;
+        state_dynamics_forcemodel( Xinter, k3); Xinter = X + k3 * dT;
+        state_dynamics_forcemodel( Xinter, k4);
+
+        Xnext = X + (k1 + 2 * k2 + 2 * k3 + k4) * dT / 6;
+
+    }
+
 		void predict_step()
-		{ 
+		{
 			static double last_predict_time = ros::Time::now().toSec();
 			double dT = ros::Time::now().toSec() - last_predict_time;
 			RK4(dT,X,P,X,P);
+            RK4_fakesensor(dT,X,Z_fakesensor);
 			last_predict_time = ros::Time::now().toSec();
 		}
 
@@ -666,8 +718,6 @@ class NavigationNode {
             S = H_baro * P * H_baro.transpose() + R_baro;
             K = S.llt().solve(H_baro * P).transpose();
             X = X + K * (z - h_x);
-
-            //std::cout << K << std::endl << std::endl;
 
             IKH = (I - K * H_baro);
             P = IKH * P * IKH.transpose() + K * R_baro * K.transpose();
@@ -702,10 +752,41 @@ class NavigationNode {
         K = S.llt().solve(H_gps * P).transpose();
         X = X + K * (z - h_x);
 
-        //std::cout << H_gps << std::endl << std::endl;
-
         IKH = (I - K * H_gps);
         P = IKH * P * IKH.transpose() + K * R_gps * K.transpose();
+
+    }
+
+    void update_step_fsen(const sensor_data_fsen &z)
+    {
+        //propagate hdot autodiff scalar at current x
+        ADx = X;
+        ad_sensor_data_fsen hdot;
+        mesurementModelFakeSensor(ADx, hdot);
+
+        //compute h(x)
+        sensor_data_fsen h_x;
+        mesurementModelFakeSensor(X, h_x);
+
+        // obtain the jacobian of h(x)
+        for (int i = 0; i < hdot.size(); i++) {
+            H_fsen.row(i) = hdot(i).derivatives();
+        }
+
+        // compute EKF update
+        // taken from https://github.com/LA-EPFL/yakf/blob/master/ExtendedKalmanFilter.h
+        Eigen::Matrix<double, NX, NX> IKH;  // temporary matrix
+        Eigen::Matrix<double, NZFAKESENSOR, NZFAKESENSOR> S; // innovation covariance
+        Eigen::Matrix<double, NX, NZFAKESENSOR> K; // Kalman gain
+        Eigen::Matrix<double, NX, NX> I; // identity
+
+        I.setIdentity();
+        S = H_fsen * P * H_fsen.transpose() + R_fsen;
+        K = S.llt().solve(H_fsen * P).transpose();
+        X = X + K * (z - h_x);
+
+        IKH = (I - K * H_fsen);
+        P = IKH * P * IKH.transpose() + K * R_fsen * K.transpose();
 
     }
 
@@ -740,8 +821,6 @@ class NavigationNode {
         K = S.llt().solve(H_gyro * P).transpose();
         X = X + K * (z - h_x);
 
-        //std::cout << H_gps << std::endl << std::endl;
-
         IKH = (I - K * H_gyro);
         P = IKH * P * IKH.transpose() + K * R_gyro * K.transpose();
 
@@ -774,8 +853,6 @@ class NavigationNode {
         S = H_mag * P * H_mag.transpose() + R_mag;
         K = S.llt().solve(H_mag * P).transpose();
         X = X + K * (z - h_x);
-
-        //std::cout << K << std::endl << std::endl;
 
         IKH = (I - K * H_mag);
         P = IKH * P * IKH.transpose() + K * R_mag * K.transpose();
@@ -826,36 +903,14 @@ class NavigationNode {
 				// Do nothing
 			}
 
-			else if (rocket_fsm.state_machine.compare("Launch") == 0 || rocket_fsm.state_machine.compare("Rail") == 0)
+			else if (rocket_fsm.state_machine.compare("Launch") == 0 || rocket_fsm.state_machine.compare("Rail") == 0||rocket_fsm.state_machine.compare("Coast") == 0)
 			{
-                if(imu_flag){
-                    update_step_baro(z_baro);
-                    update_step_mag(mag_data);
-                    //update_step_gyro(gyro_data);
-                    imu_flag = false;
-                }
-                if(gps_flag){
-                    update_step_gps(gps_data);
-                    gps_flag = false;
-                }
-                predict_step();
-            }
-
-			else if (rocket_fsm.state_machine.compare("Coast") == 0)
-			{
-                if(imu_flag){
-                    update_step_baro(z_baro);
-                    update_step_mag(mag_data);
-                    //update_step_gyro(gyro_data);
-                    imu_flag = false;
-                }
-                if(gps_flag){
-                    update_step_gps(gps_data);
-                    gps_flag = false;
-                }
                 predict_step();
 
+                //update_step_fsen(Z_fakesensor.segment(3,3));
+
             }
+
 			// Parse navigation state and publish it on the /nav_pub topic
 			real_time_simulator::State rocket_state;
 
@@ -882,8 +937,6 @@ class NavigationNode {
 
             real_time_simulator::StateCovariance state_covariance;
 
-            //std::cout << "kal: "<< X(10) << " " << X(11) << " " << X(12) << std::endl;
-
             //std::vector<Vector3d> P_vec(NX*NX);
             Matrix<double,NX,1> P_diag;
             P_diag = P.diagonal();
@@ -905,7 +958,7 @@ int main(int argc, char **argv)
 	NavigationNode navigationNode(nh);
 
 	// Thread to compute navigation state. Duration defines interval time in seconds
-	ros::Timer control_thread = nh.createTimer(ros::Duration(0.005),
+	ros::Timer control_thread = nh.createTimer(ros::Duration(navigationNode.dt_ros),
 	[&](const ros::TimerEvent&) 
 	{
 		navigationNode.updateNavigation();

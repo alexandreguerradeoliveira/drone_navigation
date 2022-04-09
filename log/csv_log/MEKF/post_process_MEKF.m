@@ -9,7 +9,7 @@ kalman_covariance_diagonal_data = csvread('kalman_covariance_diagonal.csv');
 
 %% plot trajectory
 title("Simulation trajectory visualisation")
-
+axis equal
 plot3(state_data(:,2),state_data(:,3),state_data(:,4))
 hold on
 plot3(kalman_state_data(:,2),kalman_state_data(:,3),kalman_state_data(:,4))
@@ -53,8 +53,8 @@ Z_confidance = 2.576; % 99% interval
 nexttile
 hold on
 plot(tt_kal,err_x);
-plot(tt_kal,Z_confidance*sqrt(kalman_covariance_diagonal_data(:,2)));
-plot(tt_kal,-Z_confidance*sqrt(kalman_covariance_diagonal_data(:,2)));
+plot(tt_kal,Z_confidance*sqrt(kalman_covariance_diagonal_data(:,2)),'red');
+plot(tt_kal,-Z_confidance*sqrt(kalman_covariance_diagonal_data(:,2)),'red');
 xlabel("time [s]")
 ylabel("error [m]")
 title("Kalman error in position x")
@@ -64,8 +64,8 @@ nexttile
 hold on
 plot(tt_kal,err_y);
 title("Kalman error in position y")
-plot(tt_kal,Z_confidance*sqrt(kalman_covariance_diagonal_data(:,3)));
-plot(tt_kal,-Z_confidance*sqrt(kalman_covariance_diagonal_data(:,3)));
+plot(tt_kal,Z_confidance*sqrt(kalman_covariance_diagonal_data(:,3)),'red');
+plot(tt_kal,-Z_confidance*sqrt(kalman_covariance_diagonal_data(:,3)),'red');
 xlabel("time [s]")
 ylabel("error [m]")
 
@@ -75,8 +75,8 @@ nexttile
 hold on
 title("Kalman error in position z")
 plot(tt_kal,err_z);
-plot(tt_kal,Z_confidance*sqrt(kalman_covariance_diagonal_data(:,4)));
-plot(tt_kal,-Z_confidance*sqrt(kalman_covariance_diagonal_data(:,4)));
+plot(tt_kal,Z_confidance*sqrt(kalman_covariance_diagonal_data(:,4)),'red');
+plot(tt_kal,-Z_confidance*sqrt(kalman_covariance_diagonal_data(:,4)),'red');
 xlabel("time [s]")
 ylabel("error [m]")
 
@@ -85,8 +85,8 @@ nexttile
 hold on
 plot(tt_kal,err_vel_x);
 title("Kalman error in velocity x (Inertial frame)")
-plot(tt_kal,Z_confidance*sqrt(kalman_covariance_diagonal_data(:,5)));
-plot(tt_kal,-Z_confidance*sqrt(kalman_covariance_diagonal_data(:,5)));
+plot(tt_kal,Z_confidance*sqrt(kalman_covariance_diagonal_data(:,5)),'red');
+plot(tt_kal,-Z_confidance*sqrt(kalman_covariance_diagonal_data(:,5)),'red');
 xlabel("time [s]")
 ylabel("error [m/s]")
 
@@ -95,8 +95,8 @@ nexttile
 hold on
 plot(tt_kal,err_vel_y);
 title("Kalman error in velocity y (Inertial frame)")
-plot(tt_kal,Z_confidance*sqrt(kalman_covariance_diagonal_data(:,6)));
-plot(tt_kal,-Z_confidance*sqrt(kalman_covariance_diagonal_data(:,6)));
+plot(tt_kal,Z_confidance*sqrt(kalman_covariance_diagonal_data(:,6)),'red');
+plot(tt_kal,-Z_confidance*sqrt(kalman_covariance_diagonal_data(:,6)),'red');
 xlabel("time [s]")
 ylabel("error [m/s]")
 
@@ -104,8 +104,8 @@ ylabel("error [m/s]")
 nexttile
 hold on
 plot(tt_kal,err_vel_z);
-plot(tt_kal,Z_confidance*sqrt(kalman_covariance_diagonal_data(:,7)));
-plot(tt_kal,-Z_confidance*sqrt(kalman_covariance_diagonal_data(:,7)));
+plot(tt_kal,Z_confidance*sqrt(kalman_covariance_diagonal_data(:,7)),'red');
+plot(tt_kal,-Z_confidance*sqrt(kalman_covariance_diagonal_data(:,7)),'red');
 title("Kalman error in velocity z (Inertial frame)")
 xlabel("time [s]")
 ylabel("error [m/s]")
@@ -134,8 +134,8 @@ plot(tt_kal,err_rod(:,1));
 title("error in alpha_x ")
 xlabel("time [s]")
 ylabel("error [deg]")
-plot(tt_kal,Z_confidance*sqrt(kalman_covariance_diagonal_data(:,8)));
-plot(tt_kal,-Z_confidance*sqrt(kalman_covariance_diagonal_data(:,8)));
+plot(tt_kal,Z_confidance*sqrt(kalman_covariance_diagonal_data(:,8)),'red');
+plot(tt_kal,-Z_confidance*sqrt(kalman_covariance_diagonal_data(:,8)),'red');
 
 nexttile
 hold on
@@ -144,8 +144,8 @@ title("error in alpha_y ")
 xlabel("time [s]")
 ylabel("error [deg]")
 
-plot(tt_kal,Z_confidance*sqrt(kalman_covariance_diagonal_data(:,9)));
-plot(tt_kal,-Z_confidance*sqrt(kalman_covariance_diagonal_data(:,9)));
+plot(tt_kal,Z_confidance*sqrt(kalman_covariance_diagonal_data(:,9)),'red');
+plot(tt_kal,-Z_confidance*sqrt(kalman_covariance_diagonal_data(:,9)),'red');
 
 nexttile
 hold on
@@ -153,19 +153,19 @@ plot(tt_kal,err_rod(:,3));
 title("error in alpha_z")
 xlabel("time [s]")
 ylabel("error [deg]")
-plot(tt_kal,Z_confidance*sqrt(kalman_covariance_diagonal_data(:,10)));
-plot(tt_kal,-Z_confidance*sqrt(kalman_covariance_diagonal_data(:,10)));
+plot(tt_kal(1:end-3),Z_confidance*sqrt(kalman_covariance_diagonal_data(1:end-3,10)),'red');
+plot(tt_kal(1:end-3),-Z_confidance*sqrt(kalman_covariance_diagonal_data(1:end-3,10)),'red');
 
 
 %% err_mass
-nexttile
-hold on
-plot(tt_kal,err_mass);
-plot(tt_kal,Z_confidance*sqrt(kalman_covariance_diagonal_data(:,14)));
-plot(tt_kal,-Z_confidance*sqrt(kalman_covariance_diagonal_data(:,14)));
-title("Kalman error in mass")
-xlabel("time [s]")
-ylabel("error [Kg]")
+% nexttile
+% hold on
+% plot(tt_kal,err_mass);
+% plot(tt_kal,Z_confidance*sqrt(kalman_covariance_diagonal_data(:,14)),'red');
+% plot(tt_kal,-Z_confidance*sqrt(kalman_covariance_diagonal_data(:,14)),'red');
+% title("Kalman error in mass")
+% xlabel("time [s]")
+% ylabel("error [Kg]")
 
 %% Plots
 figure

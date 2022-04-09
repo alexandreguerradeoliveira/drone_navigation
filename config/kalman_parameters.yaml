@@ -1,0 +1,47 @@
+#------------- EKF parameters ----------------
+#
+# Defines parameters used by the Extended Kalman Filter:
+# - Sensor bias
+# - Covariance matrices
+#
+# ----------------------------------------------------
+
+gyro_bias: # precalculated gyroscope bias
+  - 0
+  - 0
+  - 0
+acc_bias:
+  - 0
+  - 0
+  - 0
+mag_bias:
+  - 0
+  - 0
+  - 0
+
+Q_diag:
+  - 0.1 # pos x noise
+  - 0.1 # pos y noise
+  - 0.1 # pos z noise
+  - 0.1 # vel x noise
+  - 0.1 # vel y noise
+  - 0.1 # vel z noise
+  - 0.1 # qw noise
+  - 0.1 # qx noise
+  - 0.1 # qy noise
+  - 0.1 # qz noise
+  - 0.1 # omega x noise
+  - 0.1 # omega y noise
+  - 0.1 # omega z noise
+  - 0.1 # mass noise
+  - 0.1 # disturbance force x noise
+  - 0.1 # disturbance force y noise
+  - 0.1 # disturbance force z noise
+  - 0.1 # disturbance torque x noise
+  - 0.1 # disturbance torque y noise
+  - 0.1 # disturbance torque z noise
+
+
+
+
+

@@ -76,11 +76,11 @@ class NavigationNode {
 		// Last received fake GPS data
 		Eigen::Matrix<double, 3, 1> gps_pos;
 	      	Eigen::Matrix<double, 3, 1> gps_vel;
-		double gps_noise_xy = 2.0;
-		double gps_noise_z = 2;
-		double gps_freq = 2;
-		double gps_noise_xy_vel = 2.0;
-		double gps_noise_z_vel = 2.0;
+		double gps_noise_xy = .8;
+		double gps_noise_z = .8;
+		double gps_freq = 10;
+		double gps_noise_xy_vel = .2;
+		double gps_noise_z_vel = .2;
 		// end fakegps
 		
 		//Multiplicative EFK matrices
@@ -124,65 +124,69 @@ class NavigationNode {
 
 	
 	public:
-		NavigationNode(ros::NodeHandle nh)
-		{
-			// Initialize publishers and subscribers
-        	initTopics(nh);
+		NavigationNode(ros::NodeHandle nh) {
+            // Initialize publishers and subscribers
+            initTopics(nh);
 
-			// Initialize fsm
-			rocket_fsm.time_now = 0;
-			rocket_fsm.state_machine = "Idle";
+            // Initialize fsm
+            rocket_fsm.time_now = 0;
+            rocket_fsm.state_machine = "Idle";
 
-			// Initialize rocket class with useful parameters
-			rocket.init(nh);
+            // Initialize rocket class with useful parameters
+            rocket.init(nh);
 
-			//Get initial orientation and convert in Radians
-			float roll = 0, zenith = 0, azimuth = 0.0;
-			nh.getParam("/environment/rocket_roll", roll);
-			nh.getParam("/environment/rail_zenith", zenith);
-			nh.getParam("/environment/rail_azimuth", azimuth);
+            //Get initial orientation and convert in Radians
+            float roll = 0, zenith = 0, azimuth = 0.0;
+            nh.getParam("/environment/rocket_roll", roll);
+            nh.getParam("/environment/rail_zenith", zenith);
+            nh.getParam("/environment/rail_azimuth", azimuth);
 
-			roll *= DEG2RAD; zenith *= DEG2RAD; azimuth *= DEG2RAD;
+            roll *= DEG2RAD;
+            zenith *= DEG2RAD;
+            azimuth *= DEG2RAD;
 
-			typedef Eigen::EulerSystem<-Eigen::EULER_Z, Eigen::EULER_Y, Eigen::EULER_Z> Rail_system;
-			typedef Eigen::EulerAngles<double, Rail_system> angle_type;
+            typedef Eigen::EulerSystem<-Eigen::EULER_Z, Eigen::EULER_Y, Eigen::EULER_Z> Rail_system;
+            typedef Eigen::EulerAngles<double, Rail_system> angle_type;
 
-			angle_type init_angle(azimuth, zenith, roll);
+            angle_type init_angle(azimuth, zenith, roll);
 
-			Eigen::Quaterniond q(init_angle);
+            Eigen::Quaterniond q(init_angle);
 
-			// Init state X  
-			X << 0, 0, 0,   0, 0, 0,     0.0, 0.0 , 0.0 , 1.0 ,     0.0, 0.0, 0.0,    rocket.propellant_mass, 0.0,0.0,0.0, 0.0,0.0,0.0, 0.0,0.0,0.0;
-			X.segment(6,4) = q.coeffs();
-			delta_x << 0,0,0,  0,0,0,  0,0,0,  0,0,0, 0,0,0,  0,0,0;
-			
-			
-			P.setZero();
-			
-			
-			Q.setZero();
-			Q.block(0,0,3,3) = Eigen::Matrix<double, 3, 3>::Identity(3, 3)*0.00001;
-            Q(2,2) = 2;
-
-			Q.block(3,3,3,3) = Eigen::Matrix<double, 3, 3>::Identity(3, 3)*0.05;
-            Q(5,5) = 1;
-			
-			Q.block(6,6,3,3) = Eigen::Matrix<double, 3, 3>::Identity(3, 3)*0.0001;
-			
-			Q.block(13,13,9,9) = Eigen::Matrix<double, 9, 9>::Identity(9, 9)*0.00001;
-
-            Q(12,12) = 0.0025;
+            // Init state X
+            X
+                    << 0, 0, 0, 0, 0, 0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, rocket.propellant_mass, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
+            X.segment(6, 4) = q.coeffs();
+            delta_x << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0;
 
 
+            P.setZero();
 
-            R_mag.setIdentity()*0.2*0.2;
-			
-			R_barro(0,0) = 0.1*0.1;
-			
-			R_gps.setIdentity()*5;
+
+            Q.setZero();
+            Q.block(0, 0, 3, 3) = Eigen::Matrix<double, 3, 3>::Identity(3, 3) * 0.00001;
+            Q(2, 2) = 2;
+
+            Q.block(3, 3, 3, 3) = Eigen::Matrix<double, 3, 3>::Identity(3, 3) * 0.05;
+            Q(5, 5) = 1;
+
+            Q.block(6, 6, 3, 3) = Eigen::Matrix<double, 3, 3>::Identity(3, 3) * 0.0000000003;
+
+            Q.block(13, 13, 9, 9) = Eigen::Matrix<double, 9, 9>::Identity(9, 9) * 0.0000000001;
+
+            Q(12, 12) = 0.0;
+
+
+            R_mag.setIdentity() * 0.001 * 0.001;
+
+            R_barro(0, 0) = 0.1 * 0.1;
+
+            R_gps.setIdentity() * 0.8 * 0.8;
+            R_gps(3, 3) = 0.2 * 0.2;
+            R_gps(4, 4) = 0.2 * 0.2;
+            R_gps(5, 5) = 0.2 * 0.2;
         }
 
-		void initTopics(ros::NodeHandle &nh) 
+    void initTopics(ros::NodeHandle &nh)
 		{
 			// Create filtered rocket state publisher
 			nav_pub = nh.advertise<real_time_simulator::State>("kalman_rocket_state", 10);

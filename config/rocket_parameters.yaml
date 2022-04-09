@@ -34,7 +34,7 @@ dry_I:
   - 2
 propellant_mass: 7.37 #4.65
 propellant_CM: 2.5
-Isp: 178
+Isp: 99999999
 maxThrust:
   - 100
   - 100

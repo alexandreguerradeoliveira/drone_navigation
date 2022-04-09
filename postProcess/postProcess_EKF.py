@@ -24,7 +24,7 @@ import time
 import rosbag
 
 tStart = 0
-tEnd = 22
+tEnd = 100
 
 # Simulated state
 position = np.zeros((1,3))

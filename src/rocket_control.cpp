@@ -42,6 +42,9 @@
 
 #include "rocket_model.hpp"
 
+#include "Eigen/Core"
+#include "Eigen/Geometry"
+
 class ControlNode {
   private:
       // Class with useful rocket parameters and methods
@@ -142,20 +145,21 @@ class ControlNode {
         geometry_msgs::Vector3 thrust_force;
         geometry_msgs::Vector3 thrust_torque;
 
-        static float angularX_sum = 0;
-        static float angularY_sum = 0;
+        Eigen::Quaternion<double> attitude(rocket_state.pose.orientation.w, rocket_state.pose.orientation.x, rocket_state.pose.orientation.y, rocket_state.pose.orientation.z);
+        Eigen::Matrix<double, 3, 3> rot_matrix = attitude.toRotationMatrix();
 
-        angularX_sum += rocket_state.twist.angular.x;
-        angularY_sum += rocket_state.twist.angular.y;
+        // Convert angular rate in body frame
+        Eigen::Matrix<double, 3, 1> angular_rate{rocket_state.twist.angular.x, rocket_state.twist.angular.y, rocket_state.twist.angular.z};
+        angular_rate = rot_matrix.transpose()*angular_rate;
 
+        // Basic PD controller in orientation
+        thrust_torque.x = -100*rocket_state.pose.orientation.x - 100*angular_rate(0);
+        thrust_torque.y = -100*rocket_state.pose.orientation.y - 100*angular_rate(1);
 
+        // Basic PD controller in altitude
         thrust_force.x = 0;
         thrust_force.y = 0;
         thrust_force.z = 10*(20-rocket_state.pose.position.z) + 9.81*(rocket_state.propeller_mass+rocket.dry_mass) - 10*rocket_state.twist.linear.z;
-
-        thrust_torque.x = 2*rocket_state.twist.linear.y - 100*rocket_state.twist.angular.x;
-        thrust_torque.y = -2*rocket_state.twist.linear.x - 100*rocket_state.twist.angular.y;
-        thrust_torque.z = -10*rocket_state.twist.angular.z;
 
         control_law.force = thrust_force;
         control_law.torque = thrust_torque;
