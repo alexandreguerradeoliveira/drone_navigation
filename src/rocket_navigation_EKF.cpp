@@ -63,10 +63,11 @@ using namespace Eigen;
 class NavigationNode {
 	public:
         const float dt_ros = 0.005;
+
         const int simulation = 1; // 1=runs in simulation (SIL), 0=runs on drone with optitrack
         const int use_gps = 0; // 0=use optitrack, 1=use px4 gps
 
-        static const int NX = 33;
+        static const int NX = 20; // number of states
 
 		static const int NZBARO = 1;
         static const int NZGPS = 6;
@@ -126,6 +127,7 @@ class NavigationNode {
         using sensor_data_optitrack_t = Eigen::Matrix<scalar_t, NZOPTITRACK, 1>;
         using sensor_data_optitrack = sensor_data_optitrack_t<double>;
         using ad_sensor_data_optitrack = sensor_data_optitrack_t<AutoDiffScalar<state_t<double>>>;// Autodiff sensor variable optitrack
+
 
     // Sensor mesurement model matrices
 
@@ -220,16 +222,16 @@ class NavigationNode {
 
         double gps_freq = 10;
 
-        //double gps_noise_xy = .8;
-        //double gps_noise_z = .6;
-		//double gps_noise_xy_vel = .2;
-		//double gps_noise_z_vel = .2;
+        double gps_noise_xy = .8;
+        double gps_noise_z = .6;
+		double gps_noise_xy_vel = .2;
+		double gps_noise_z_vel = .2;
 
 
-        double gps_noise_xy = .008;
-        double gps_noise_z = .06;
-        double gps_noise_xy_vel = .008;
-        double gps_noise_z_vel = .06;
+        //double gps_noise_xy = .008;
+        //double gps_noise_z = .06;
+        //double gps_noise_xy_vel = .008;
+        //double gps_noise_z_vel = .06;
 
     // end fakegps
 
@@ -244,6 +246,12 @@ class NavigationNode {
     float gps_latitude = 0;
     float gps_longitude = 0;
     float gps_alt = 0;
+
+    Matrix<double,3,1> acc_bias;
+    Matrix<double,3,1> gyro_bias;
+    Matrix<double,3,1> mag_bias;
+    double baro_bias;
+
 
 
 public:
@@ -277,11 +285,16 @@ public:
 
 			Eigen::Quaterniond q(init_angle);
 
+            acc_bias << 0,0,0;
+            gyro_bias << 0,0,0;
+            mag_bias << 0,0,0;
+            baro_bias = 0;
+
 			/// Init state X
             X.setZero();
             X(13) = rocket.propellant_mass;
 			X.segment(6,4) = q.coeffs();
-            X.segment(30,3) << 1.0,0.0,0.0;
+            //X.segment(30,3) << 1.0,0.0,0.0;
 
             /// Initialize kalman parameters
             // sensor covarience matrices
@@ -293,9 +306,13 @@ public:
             //R_gps(2,2) = 0.6*0.6;
             //R_gps.block(3,3,3,3) =Eigen::Matrix<double, 3, 3>::Identity(3, 3) * 0.2*0.2;
 
-            R_gps = R_gps*0.008*0.008;
-            R_gps(2,2) = 0.06*0.06;
-            R_gps.block(3,3,3,3) =Eigen::Matrix<double, 3, 3>::Identity(3, 3) * 0.02*0.02;
+            //R_gps = R_gps*0.8*0.8;
+            //R_gps(2,2) = 0.6*0.6;
+            //R_gps.block(3,3,3,3) =Eigen::Matrix<double, 3, 3>::Identity(3, 3) * 0.2*0.2;
+
+            R_gps = R_gps*38;
+            R_gps(2,2) = 50;
+            R_gps.block(3,3,3,3) =Eigen::Matrix<double, 3, 3>::Identity(3, 3) * 60;
 
 
             R_mag.setIdentity();
@@ -316,20 +333,18 @@ public:
 
             // process covariance matrix
 			Q.setIdentity();
-            Q = Q*0.000000000;
             Q.block(0,0,3,3) = Eigen::Matrix<double, 3, 3>::Identity(3, 3)*0.000003*dt_ros;
             Q(2,2) = 1*dt_ros;
             Q.block(3,3,3,3) = Eigen::Matrix<double, 3, 3>::Identity(3, 3)*0.000001*dt_ros;
             Q(5,5) = 1*dt_ros;
 
-
-            Q(6,6) = 0.0000001;
-            Q(7,7) = 0.0000001;
-            Q(8,8) = 0.000000001;
-            Q(9,9) = 0.000000001;
+            Q(6,6) = 0.0001*dt_ros;
+            Q(7,7) = 0.0001*dt_ros;
+            Q(8,8) = 0.000001*dt_ros;
+            Q(9,9) = 0.000001*dt_ros;
 
             Q.block(10,10,3,3) =  Eigen::Matrix<double, 3, 3>::Identity(3, 3)*0.001*0.001;
-            Q.block(24,24,6,6) =Eigen::Matrix<double, 6, 6>::Identity(6, 6) * 0;
+            Q.block(14,14,6,6) =Eigen::Matrix<double, 6, 6>::Identity(6, 6) * 0;
 
 
             // Init derivatives
@@ -543,10 +558,15 @@ public:
 			Eigen::Matrix<T, 3, 3> rot_matrix = attitude.toRotationMatrix();
 
 			// Current acceleration and angular rate from IMU
-			Eigen::Matrix<T, 3, 1> IMU_acc; IMU_acc << (T) rocket_sensor.IMU_acc.x-x(17),(T) rocket_sensor.IMU_acc.y-x(18),(T) rocket_sensor.IMU_acc.z-x(19);
+			Eigen::Matrix<T, 3, 1> IMU_acc; IMU_acc << (T) rocket_sensor.IMU_acc.x-acc_bias(0),(T) rocket_sensor.IMU_acc.y-acc_bias(1),(T) rocket_sensor.IMU_acc.z-acc_bias(2);
 
-			// Angular velocity omega in quaternion format to compute quaternion derivative
-            Eigen::Quaternion<T> omega_quat(0.0, rocket_sensor.IMU_gyro.x-x(14), rocket_sensor.IMU_gyro.y-x(15), rocket_sensor.IMU_gyro.z-x(16));
+
+            Eigen::Matrix<T, 3, 1> omega;
+            omega << rocket_sensor.IMU_gyro.x-gyro_bias(0), rocket_sensor.IMU_gyro.y-gyro_bias(1), rocket_sensor.IMU_gyro.z-gyro_bias(2);
+
+
+            // Angular velocity omega in quaternion format to compute quaternion derivative
+            Eigen::Quaternion<T> omega_quat(0.0, omega(0), omega(1), omega(2));
             //Eigen::Quaternion<T> omega_quat(0.0, x(10), x(11), x(12));
 
             //Inertia
@@ -556,18 +576,14 @@ public:
             I<< rocket.total_Inertia[0], rocket.total_Inertia[1],rocket.total_Inertia[2];
 
             Eigen::Matrix<T, 3, 1> dist_force;
-            dist_force << x(24),x(25),x(26);
+            dist_force << x(14),x(15),x(16);
 
             Eigen::Matrix<T, 3, 1> dist_torque;
-            dist_torque << x(27),x(28),x(29);
+            dist_torque << x(17),x(18),x(19);
 
             // compute total torque in body frame
             Eigen::Matrix<T, 3, 1> total_torque_body;
             total_torque_body = control_torque + rot_matrix.transpose()*dist_torque;
-
-            Eigen::Matrix<T, 3, 1> omega;
-            omega << rocket_sensor.IMU_gyro.x-x(14), rocket_sensor.IMU_gyro.y-x(15), rocket_sensor.IMU_gyro.z-x(16);
-
 
             // -------------- Differential equation ---------------------
 
@@ -583,23 +599,15 @@ public:
 			// Angular speed
             xdot.segment(10, 3) = rot_matrix*(total_torque_body - omega.cross(I.template cast<T>().cwiseProduct(omega))).cwiseProduct(I_inv.template cast<T>());
 
-
 			// Mass variation
             xdot(13) = 0;
 
-
-            //Bias for gyroscope, accelerometer, magnetometer, barometer - bias variation follows a static update
-            xdot.segment(14, 10) << 0, 0, 0,  0, 0, 0,  0, 0, 0,  0;
-
             // Disturbance forces
-            xdot.segment(24, 3) << 0, 0, 0;
+            xdot.segment(14, 3) << 0, 0, 0;
 
             // Disturbance moments
-            xdot.segment(27, 3) << 0, 0, 0;
+            xdot.segment(17, 3) << 0, 0, 0;
 
-            // Magnetic vector in earth's frame
-            xdot.segment(30, 3) << 0, 0, 0;
-			
 		}
 
     template<typename T>
@@ -620,10 +628,10 @@ public:
         Eigen::Matrix<T, 3, 3> rot_matrix = attitude.toRotationMatrix();
 
         Eigen::Matrix<T, 3, 1> dist_force;
-        dist_force << x(24),x(25),x(26);
+        dist_force << x(14),x(15),x(16);
 
         Eigen::Matrix<T, 3, 1> dist_torque;
-        dist_torque << x(27),x(28),x(29);
+        dist_torque << x(17),x(18),x(19);
 
         // compute total force inertial frame
         Eigen::Matrix<T, 3, 1> total_force_inertial;
@@ -660,32 +668,19 @@ public:
         // Angular speed variation is given by euler's equation if in body frame
         xdot.segment(10, 3) = rot_matrix*(total_torque_body - omega.cross(I.template cast<T>().cwiseProduct(omega))).cwiseProduct(I_inv.template cast<T>());
 
-
-        // Mass variation is proportional to total thrust (! autodiff .norm() gives nan)
-        //if(control_force.template cast<T>().norm()<0.01){
-        //    xdot(13) = -(control_force.template cast<T>()(2))/((T)rocket.Isp*g0);
-        //}else{
-        //    xdot(13) = -(control_force.template cast<T>().norm())/((T)rocket.Isp*g0);
-        //}
+        // no mass variation
         xdot(13) = 0;
 
-        //Bias for gyroscope, accelerometer, magnetometer, barometer - bias variation follows a static update
-        xdot.segment(14, 10) << 0, 0, 0,  0, 0, 0,  0, 0, 0,  0;
-
         // Disturbance forces
-        xdot.segment(24, 3) << 0, 0, 0;
+        xdot.segment(14, 3) << 0, 0, 0;
 
         // Disturbance moments
-        xdot.segment(27, 3) << 0, 0, 0;
-
-        // Magnetic vector in earth's frame
-        xdot.segment(30, 3) << 0, 0, 0;
-
+        xdot.segment(17, 3) << 0, 0, 0;
     }
 
         template<typename T>
         void mesurementModelBaro(const state_t<T> &x, sensor_data_baro_t<T> &z) {
-            z(0) = x(2)+x(23);
+            z(0) = x(2)+baro_bias;
         }
 
         template<typename T>
@@ -699,9 +694,11 @@ public:
             Eigen::Quaternion<T> attitude(x(9), x(6), x(7), x(8));
             attitude.normalize();
             Eigen::Matrix<T, 3, 3> rot_matrix = attitude.toRotationMatrix();
+            Eigen::Matrix<T, 3, 1> mag_vec;
+            mag_vec << 1.0,0.0,0.0;
 
             // express inertial magnetic vector estimate in body-frame and add bias
-            z = rot_matrix.transpose()*(x.segment(30,3)) + x.segment(20,3);
+            z = rot_matrix.transpose()*(mag_vec) + mag_bias;
         }
 
         template<typename T>
@@ -716,14 +713,14 @@ public:
             control_force << rocket_control.force.x, rocket_control.force.y, rocket_control.force.z;
 
             Eigen::Matrix<T, 3, 1> dist_force;
-            dist_force << x(24),x(25),x(26);
+            dist_force << x(14),x(15),x(16);
 
             Eigen::Matrix<T, 3, 1> total_force_inertial;
             total_force_inertial = rot_matrix*(control_force) - Eigen::Vector3d::UnitZ().template cast<T>()*(x(13)+dry_mass)*g0 + dist_force;
 
             // express inertial magnetic vector estimate in body-frame and add bias
-            z = rot_matrix.transpose()*(total_force_inertial/(dry_mass+x(13))) + x.segment(17,3);
-    }
+            z = rot_matrix.transpose()*(total_force_inertial/(dry_mass+x(13))) + acc_bias;
+        }
 
         template<typename T>
         void mesurementModelGPS(const state_t<T> &x, sensor_data_gps_t<T> &z) {
@@ -741,7 +738,7 @@ public:
             attitude.normalize();
             Eigen::Matrix<T, 3, 3> rot_matrix = attitude.toRotationMatrix();
 
-            z = rot_matrix.transpose()*(x.segment(10,3))+x.segment(14,3);
+            z = rot_matrix.transpose()*(x.segment(10,3))+gyro_bias;
         }
 		
 		void fullDerivative(const state &x,
@@ -776,7 +773,7 @@ public:
                 Eigen::Quaternion<double> attitude(X(9), X(6), X(7), X(8));
                 attitude.normalize();
                 Eigen::Matrix<double, 3, 3> rot_matrix = attitude.toRotationMatrix();
-                omega_b <<rocket_sensor.IMU_gyro.x-X(14), rocket_sensor.IMU_gyro.y-X(15), rocket_sensor.IMU_gyro.z-X(16);
+                omega_b <<rocket_sensor.IMU_gyro.x-gyro_bias(0), rocket_sensor.IMU_gyro.y-gyro_bias(1), rocket_sensor.IMU_gyro.z-gyro_bias(2);
                 X.segment(10,3) = rot_matrix*omega_b;
 
                 //RK4 integration
@@ -827,21 +824,8 @@ public:
                 H_baro.row(i) = hdot(i).derivatives();
             }
 
-            // compute EKF update
-            // taken from https://github.com/LA-EPFL/yakf/blob/master/ExtendedKalmanFilter.h
-            Eigen::Matrix<double, NX, NX> IKH;  // temporary matrix
-            Eigen::Matrix<double, NZBARO, NZBARO> S; // innovation covariance
-            Eigen::Matrix<double, NX, NZBARO> K; // Kalman gain
-            Eigen::Matrix<double, NX, NX> I; // identity
-
-            I.setIdentity();
-            S = H_baro * P * H_baro.transpose() + R_baro;
-            K = S.llt().solve(H_baro * P).transpose();
-            X = X + K * (z - h_x);
-
-            IKH = (I - K * H_baro);
-            P = IKH * P * IKH.transpose() + K * R_baro * K.transpose();
-
+            Eigen::Matrix<double, NZBARO, 1> inov = z-h_x;
+            EKF_update(X,P,H_baro,R_baro,inov);
         }
 
     void update_step_gps(const sensor_data_gps &z)
@@ -860,21 +844,8 @@ public:
             H_gps.row(i) = hdot(i).derivatives();
         }
 
-        // compute EKF update
-        // taken from https://github.com/LA-EPFL/yakf/blob/master/ExtendedKalmanFilter.h
-        Eigen::Matrix<double, NX, NX> IKH;  // temporary matrix
-        Eigen::Matrix<double, NZGPS, NZGPS> S; // innovation covariance
-        Eigen::Matrix<double, NX, NZGPS> K; // Kalman gain
-        Eigen::Matrix<double, NX, NX> I; // identity
-
-        I.setIdentity();
-        S = H_gps * P * H_gps.transpose() + R_gps;
-        K = S.llt().solve(H_gps * P).transpose();
-        X = X + K * (z - h_x);
-
-        IKH = (I - K * H_gps);
-        P = IKH * P * IKH.transpose() + K * R_gps * K.transpose();
-
+        Eigen::Matrix<double, NZGPS, 1> inov = z-h_x;
+        EKF_update(X,P,H_gps,R_gps,inov);
     }
 
     void update_step_optitrack(const sensor_data_optitrack &z)
@@ -893,20 +864,8 @@ public:
             H_optitrack.row(i) = hdot(i).derivatives();
         }
 
-        // compute EKF update
-        // taken from https://github.com/LA-EPFL/yakf/blob/master/ExtendedKalmanFilter.h
-        Eigen::Matrix<double, NX, NX> IKH;  // temporary matrix
-        Eigen::Matrix<double, NZOPTITRACK, NZOPTITRACK> S; // innovation covariance
-        Eigen::Matrix<double, NX, NZOPTITRACK> K; // Kalman gain
-        Eigen::Matrix<double, NX, NX> I; // identity
-
-        I.setIdentity();
-        S = H_optitrack * P * H_optitrack.transpose() + R_optitrack;
-        K = S.llt().solve(H_optitrack * P).transpose();
-        X = X + K * (z - h_x);
-
-        IKH = (I - K * H_optitrack);
-        P = IKH * P * IKH.transpose() + K * R_optitrack * K.transpose();
+        Eigen::Matrix<double, NZOPTITRACK, 1> inov = z-h_x;
+        EKF_update(X,P,H_optitrack,R_optitrack,inov);
 
     }
 
@@ -926,20 +885,8 @@ public:
             H_fsen.row(i) = hdot(i).derivatives();
         }
 
-        // compute EKF update
-        // taken from https://github.com/LA-EPFL/yakf/blob/master/ExtendedKalmanFilter.h
-        Eigen::Matrix<double, NX, NX> IKH;  // temporary matrix
-        Eigen::Matrix<double, NZFAKESENSOR, NZFAKESENSOR> S; // innovation covariance
-        Eigen::Matrix<double, NX, NZFAKESENSOR> K; // Kalman gain
-        Eigen::Matrix<double, NX, NX> I; // identity
-
-        I.setIdentity();
-        S = H_fsen * P * H_fsen.transpose() + R_fsen;
-        K = S.llt().solve(H_fsen * P).transpose();
-        X = X + K * (z - h_x);
-
-        IKH = (I - K * H_fsen);
-        P = IKH * P * IKH.transpose() + K * R_fsen * K.transpose();
+        Eigen::Matrix<double, NZFAKESENSOR, 1> inov = z-h_x;
+        EKF_update(X,P,H_fsen,R_fsen,inov);
 
     }
 
@@ -959,24 +906,8 @@ public:
             H_gyro.row(i) = hdot(i).derivatives();
         }
 
-
-        std::cout << "done " << std::endl;
-
-        // compute EKF update
-        // taken from https://github.com/LA-EPFL/yakf/blob/master/ExtendedKalmanFilter.h
-        Eigen::Matrix<double, NX, NX> IKH;  // temporary matrix
-        Eigen::Matrix<double, NZGYRO, NZGYRO> S; // innovation covariance
-        Eigen::Matrix<double, NX, NZGYRO> K; // Kalman gain
-        Eigen::Matrix<double, NX, NX> I; // identity
-
-        I.setIdentity();
-        S = H_gyro * P * H_gyro.transpose() + R_gyro;
-        K = S.llt().solve(H_gyro * P).transpose();
-        X = X + K * (z - h_x);
-
-        IKH = (I - K * H_gyro);
-        P = IKH * P * IKH.transpose() + K * R_gyro * K.transpose();
-
+        Eigen::Matrix<double, NZGYRO, 1> inov = z-h_x;
+        EKF_update(X,P,H_gyro,R_gyro,inov);
     }
 
     void update_step_mag(const sensor_data_mag &z)
@@ -994,22 +925,8 @@ public:
         for (int i = 0; i < hdot.size(); i++) {
             H_mag.row(i) = hdot(i).derivatives();
         }
-
-        // compute EKF update
-        // taken from https://github.com/LA-EPFL/yakf/blob/master/ExtendedKalmanFilter.h
-        Eigen::Matrix<double, NX, NX> IKH;  // temporary matrix
-        Eigen::Matrix<double, NZMAG, NZMAG> S; // innovation covariance
-        Eigen::Matrix<double, NX, NZMAG> K; // Kalman gain
-        Eigen::Matrix<double, NX, NX> I; // identity
-
-        I.setIdentity();
-        S = H_mag * P * H_mag.transpose() + R_mag;
-        K = S.llt().solve(H_mag * P).transpose();
-        X = X + K * (z - h_x);
-
-        IKH = (I - K * H_mag);
-        P = IKH * P * IKH.transpose() + K * R_mag * K.transpose();
-
+        Eigen::Matrix<double, NZMAG, 1> inov = z-h_x;
+        EKF_update(X,P,H_mag,R_mag,inov);
     }
 
     // !!!!!! this does not work in flight !!!!!!!!!
@@ -1029,28 +946,32 @@ public:
             H_acc.row(i) = hdot(i).derivatives();
         }
 
-        // compute EKF update
-        // taken from https://github.com/LA-EPFL/yakf/blob/master/ExtendedKalmanFilter.h
-        Eigen::Matrix<double, NX, NX> IKH;  // temporary matrix
-        Eigen::Matrix<double, NZACC, NZACC> S; // innovation covariance
-        Eigen::Matrix<double, NX, NZACC> K; // Kalman gain
-        Eigen::Matrix<double, NX, NX> I; // identity
-
-        I.setIdentity();
-        S = H_acc * P * H_acc.transpose() + R_acc;
-        K = S.llt().solve(H_acc * P).transpose();
-        X = X + K * (z - h_x);
-
-        //std::cout << K << std::endl << std::endl;
-
-        IKH = (I - K * H_acc);
-        P = IKH * P * IKH.transpose() + K * R_acc * K.transpose();
+        Eigen::Matrix<double, NZACC, 1> inov = z-h_x;
+        EKF_update(X,P,H_acc,R_acc,inov);
 
     }
 
+    template<int nz>
+    void EKF_update(state &X,state_matrix &P,Matrix<double,nz,NX> H,Matrix<double, nz, nz> R,Matrix<double, nz, 1> inov){
+        // compute EKF update
+        // taken from https://github.com/LA-EPFL/yakf/blob/master/ExtendedKalmanFilter.h
+        Eigen::Matrix<double, NX, NX> IKH;  // temporary matrix
+        Eigen::Matrix<double, nz, nz> S; // innovation covariance
+        Eigen::Matrix<double, NX, nz> K; // Kalman gain
+        Eigen::Matrix<double, NX, NX> I; // identity
+
+        I.setIdentity();
+        S = H * P * H.transpose() + R;
+        K = S.llt().solve(H * P).transpose();
+        X = X + K * (inov); // inov = z - h_x
+
+        IKH = (I - K * H);
+        P = IKH * P * IKH.transpose() + K * R * K.transpose();
+    }
+
     void latlongtometercoeffs(float lat0,float &kx,float &ky){
-        kx = 111132.92-559.82*cos(2*lat0)+1.175*cos(4*lat0)-0.0023*cos(6*lat0); // meters per degree of latt
-        ky = 111412.84*cos(lat0)-93.5*cos(3*lat0)+0.118*cos(5*lat0);
+        kx = 111132.92-559.82*cos(2*lat0)+1.175*cos(4*lat0)-0.0023*cos(6*lat0); // meters per degree of latitude
+        ky = 111412.84*cos(lat0)-93.5*cos(3*lat0)+0.118*cos(5*lat0); // meters per degree of longitude
     }
 
 		void updateNavigation()
