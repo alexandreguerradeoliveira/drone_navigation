@@ -53,7 +53,8 @@ err_mass = kalman_state_data(:,15)-interp_state_mass;
 figure
 tiledlayout(4,3)
 
-Z_confidance = 2.576; % 99% interval
+%Z_confidance = 2.576; % 99% interval
+Z_confidance = 3;
 
 %% err_x
 nexttile

@@ -67,15 +67,18 @@ class NavigationNode {
         const int simulation = 1; // 1=runs in simulation (SIL), 0=runs on drone with optitrack
         const int use_gps = 0; // 0=use optitrack, 1=use px4 gps
 
-        static const int NX = 20; // number of states
+        static const int NX = 19; // number of states
 
 		static const int NZBARO = 1;
-        static const int NZGPS = 6;
+        static const int NZGPS = 3;
         static const int NZMAG = 3;
         static const int NZACC = 3;
         static const int NZGYRO = 3;
         static const int NZFAKESENSOR= 3;
         static const int NZOPTITRACK = 3;
+
+//        float mag_declination = 0.0; // magnetic declination with respect to true north (defines a counterclockwise rotation around the inertial z axis so that the)
+//        Matrix<double,3,3> rot_mag;
 
 
 
@@ -228,10 +231,10 @@ class NavigationNode {
 		double gps_noise_z_vel = .2;
 
 
-        //double gps_noise_xy = .008;
-        //double gps_noise_z = .06;
-        //double gps_noise_xy_vel = .008;
-        //double gps_noise_z_vel = .06;
+//        double gps_noise_xy = .008;
+//        double gps_noise_z = .06;
+//        double gps_noise_xy_vel = .2;
+//        double gps_noise_z_vel = .2;
 
     // end fakegps
 
@@ -251,6 +254,8 @@ class NavigationNode {
     Matrix<double,3,1> gyro_bias;
     Matrix<double,3,1> mag_bias;
     double baro_bias;
+
+    double total_mass;
 
 
 
@@ -290,9 +295,10 @@ public:
             mag_bias << 0,0,0;
             baro_bias = 0;
 
-			/// Init state X
+
+            /// Init state X
+            total_mass = rocket.propellant_mass+dry_mass;
             X.setZero();
-            X(13) = rocket.propellant_mass;
 			X.segment(6,4) = q.coeffs();
             //X.segment(30,3) << 1.0,0.0,0.0;
 
@@ -300,23 +306,20 @@ public:
             // sensor covarience matrices
             R_baro(0,0) = 0.001*0.001;
 
+//            R_gps.setIdentity();
+//            R_gps = R_gps*0.008*0.008;
+//            R_gps(2,2) = 0.06*0.06;
+            //R_gps.block(3,3,3,3) =Eigen::Matrix<double, 3, 3>::Identity(3, 3) * 0.02*0.02;
+//            R_gps.setIdentity();
+//            R_gps = R_gps*0.8*0.8;
+//            R_gps(2,2) = 0.6*0.6;
             R_gps.setIdentity();
-
-            //R_gps = R_gps*0.8*0.8;
-            //R_gps(2,2) = 0.6*0.6;
-            //R_gps.block(3,3,3,3) =Eigen::Matrix<double, 3, 3>::Identity(3, 3) * 0.2*0.2;
-
-            //R_gps = R_gps*0.8*0.8;
-            //R_gps(2,2) = 0.6*0.6;
-            //R_gps.block(3,3,3,3) =Eigen::Matrix<double, 3, 3>::Identity(3, 3) * 0.2*0.2;
-
-            R_gps = R_gps*38;
-            R_gps(2,2) = 50;
-            R_gps.block(3,3,3,3) =Eigen::Matrix<double, 3, 3>::Identity(3, 3) * 60;
+            R_gps = R_gps*20;
+            R_gps(2,2) = 30;
 
 
             R_mag.setIdentity();
-            R_mag = R_mag*0.1*0.1;
+            R_mag = R_mag*0.001*0.001;
 
             R_gyro.setIdentity();
             R_gyro = R_gyro*0.001*0.001;
@@ -327,16 +330,16 @@ public:
             R_fsen = R_fsen*10;
 
             R_optitrack.setIdentity();
-            R_optitrack = R_optitrack*0.0001;
+            R_optitrack = R_optitrack*0.000000001;
 
             P.setZero(); // no error in the initial state
 
             // process covariance matrix
 			Q.setIdentity();
-            Q.block(0,0,3,3) = Eigen::Matrix<double, 3, 3>::Identity(3, 3)*0.000003*dt_ros;
-            Q(2,2) = 1*dt_ros;
-            Q.block(3,3,3,3) = Eigen::Matrix<double, 3, 3>::Identity(3, 3)*0.000001*dt_ros;
-            Q(5,5) = 1*dt_ros;
+            Q.block(0,0,3,3) = Eigen::Matrix<double, 3, 3>::Identity(3, 3)*0.0001*dt_ros;
+            Q(2,2) = .5*dt_ros;
+            Q.block(3,3,3,3) = Eigen::Matrix<double, 3, 3>::Identity(3, 3)*0.001*dt_ros;
+            Q(5,5) = .8*dt_ros;
 
             Q(6,6) = 0.0001*dt_ros;
             Q(7,7) = 0.0001*dt_ros;
@@ -344,7 +347,7 @@ public:
             Q(9,9) = 0.000001*dt_ros;
 
             Q.block(10,10,3,3) =  Eigen::Matrix<double, 3, 3>::Identity(3, 3)*0.001*0.001;
-            Q.block(14,14,6,6) =Eigen::Matrix<double, 6, 6>::Identity(6, 6) * 0;
+            Q.block(13,13,6,6) =Eigen::Matrix<double, 6, 6>::Identity(6, 6) *0.1;
 
 
             // Init derivatives
@@ -381,10 +384,8 @@ public:
 
             }
 
-
-
 			// Create filtered rocket state publisher
-			nav_pub = nh.advertise<real_time_simulator::State>("kalman_rocket_state", 1);
+			nav_pub = nh.advertise<real_time_simulator::State>("kalman_rocket_state", 10);
 
             // Create state covarience publisher
             cov_pub = nh.advertise<real_time_simulator::StateCovariance>("state_covariance", 1);
@@ -420,6 +421,17 @@ public:
         {
             rocket_sensor.IMU_acc = sensor->linear_acceleration;
             rocket_sensor.IMU_gyro = sensor->angular_velocity;
+
+
+            if(rocket_fsm.state_machine.compare("Coast") == 0||rocket_fsm.state_machine.compare("Launch") == 0||rocket_fsm.state_machine.compare("Rail") == 0)
+            {
+                predict_step();
+            }
+//
+//            if(rocket_fsm.state_machine.compare("Coast") == 0||rocket_fsm.state_machine.compare("Launch") == 0||rocket_fsm.state_machine.compare("Rail") == 0)
+//            {
+//                predict_step();
+//            }
         }
 
         void px4magCallback(const sensor_msgs::MagneticField::ConstPtr& sensor)
@@ -429,7 +441,7 @@ public:
             if(rocket_fsm.state_machine.compare("Coast") == 0||rocket_fsm.state_machine.compare("Launch") == 0||rocket_fsm.state_machine.compare("Rail") == 0)
             {
                 predict_step();
-                update_step_mag(mag_data);
+                //update_step_mag(mag_data);
             }
         }
 
@@ -452,7 +464,7 @@ public:
 //            float gps_x = (gps_latitude-gps_latitude0)*kx;
 //            float gps_y = (gps_longitude-gps_longitude0)*ky;
 //            float gps_z = (gps_alt-gps_alt0);
-            gps_pos << (gps_latitude-gps_latitude0)*kx,(gps_longitude-gps_longitude0)*ky,(gps_alt-gps_alt0);
+            //gps_pos << (gps_latitude-gps_latitude0)*kx,(gps_longitude-gps_longitude0)*ky,(gps_alt-gps_alt0);
 
 
 //
@@ -492,7 +504,7 @@ public:
             if(rocket_fsm.state_machine.compare("Coast") == 0||rocket_fsm.state_machine.compare("Launch") == 0||rocket_fsm.state_machine.compare("Rail") == 0)
             {
                 predict_step();
-                update_step_optitrack(optitrack_data);
+                //update_step_optitrack(optitrack_data);
             }
         }
 		
@@ -501,7 +513,6 @@ public:
 		{
 			
 			static double last_predict_time_gps = ros::Time::now().toSec();
-
 
             double dT_gps = ros::Time::now().toSec() - last_predict_time_gps;
 			
@@ -525,7 +536,7 @@ public:
                         gps_vel << gps_vel(0) + gps_xy_noise_vel(generator),gps_vel(1) + gps_xy_noise_vel(generator),gps_vel(2) + gps_z_noise_vel(generator);
 
                         gps_data.segment(0,3) = gps_pos;
-                        gps_data.segment(3,3) = gps_vel;
+                        //gps_data.segment(3,3) = gps_vel;
 
                         if(rocket_fsm.state_machine.compare("Coast") == 0||rocket_fsm.state_machine.compare("Launch") == 0||rocket_fsm.state_machine.compare("Rail") == 0){
                             predict_step();
@@ -546,11 +557,8 @@ public:
 			// -------------- Simulation variables -----------------------------
 			T g0 = (T) 9.81;  // Earth gravity in [m/s^2]
 
-			Eigen::Matrix<T, 3, 1> rocket_force;
-			rocket_force << rocket_control.force.x, rocket_control.force.y, rocket_control.force.z;
-
-            Eigen::Matrix<T, 3, 1> control_torque;
-            control_torque << rocket_control.torque.x, rocket_control.torque.y, rocket_control.torque.z;
+            Eigen::Matrix<T, 3, 1> control_torque_body;
+            control_torque_body << rocket_control.torque.x, rocket_control.torque.y, rocket_control.torque.z;
 
 			// Orientation of the rocket with quaternion
 			Eigen::Quaternion<T> attitude(x(9), x(6), x(7), x(8));
@@ -560,14 +568,12 @@ public:
 			// Current acceleration and angular rate from IMU
 			Eigen::Matrix<T, 3, 1> IMU_acc; IMU_acc << (T) rocket_sensor.IMU_acc.x-acc_bias(0),(T) rocket_sensor.IMU_acc.y-acc_bias(1),(T) rocket_sensor.IMU_acc.z-acc_bias(2);
 
-
-            Eigen::Matrix<T, 3, 1> omega;
-            omega << rocket_sensor.IMU_gyro.x-gyro_bias(0), rocket_sensor.IMU_gyro.y-gyro_bias(1), rocket_sensor.IMU_gyro.z-gyro_bias(2);
+            Eigen::Matrix<T, 3, 1> omega_body;
+            omega_body << rocket_sensor.IMU_gyro.x-gyro_bias(0), rocket_sensor.IMU_gyro.y-gyro_bias(1), rocket_sensor.IMU_gyro.z-gyro_bias(2);
 
 
             // Angular velocity omega in quaternion format to compute quaternion derivative
-            Eigen::Quaternion<T> omega_quat(0.0, omega(0), omega(1), omega(2));
-            //Eigen::Quaternion<T> omega_quat(0.0, x(10), x(11), x(12));
+            Eigen::Quaternion<T> omega_quat(0.0, omega_body(0), omega_body(1), omega_body(2));
 
             //Inertia
             Matrix<T, 3, 1> I_inv;
@@ -575,15 +581,16 @@ public:
             Matrix<T, 3, 1> I;
             I<< rocket.total_Inertia[0], rocket.total_Inertia[1],rocket.total_Inertia[2];
 
-            Eigen::Matrix<T, 3, 1> dist_force;
-            dist_force << x(14),x(15),x(16);
 
-            Eigen::Matrix<T, 3, 1> dist_torque;
-            dist_torque << x(17),x(18),x(19);
+            Eigen::Matrix<T, 3, 1> dist_force_inertial;
+            dist_force_inertial << x(13),x(14),x(15);
+
+            Eigen::Matrix<T, 3, 1> dist_torque_inertial;
+            dist_torque_inertial << x(16),x(17),x(18);
 
             // compute total torque in body frame
             Eigen::Matrix<T, 3, 1> total_torque_body;
-            total_torque_body = control_torque + rot_matrix.transpose()*dist_torque;
+            total_torque_body =  control_torque_body+rot_matrix.transpose()*(dist_torque_inertial);
 
             // -------------- Differential equation ---------------------
 
@@ -591,92 +598,89 @@ public:
 			xdot.head(3) = x.segment(3,3);
 
 			// Speed variation is acceleration
-			xdot.segment(3,3) =  rot_matrix*IMU_acc - Eigen::Vector3d::UnitZ().template cast<T>() *g0 +(dist_force)/(dry_mass+x(13));
+			xdot.segment(3,3) =  rot_matrix*IMU_acc - Eigen::Vector3d::UnitZ().template cast<T>() *g0 +(dist_force_inertial)/(total_mass);
 
 			// Quaternion variation is 0.5*q*omega_quat if omega is in the body frame
             xdot.segment(6, 4) =  0.5*(attitude*omega_quat).coeffs();
 
 			// Angular speed
-            xdot.segment(10, 3) = rot_matrix*(total_torque_body - omega.cross(I.template cast<T>().cwiseProduct(omega))).cwiseProduct(I_inv.template cast<T>());
-
-			// Mass variation
-            xdot(13) = 0;
+            xdot.segment(10, 3) = (total_torque_body - omega_body.cross(I.template cast<T>().cwiseProduct(omega_body))).cwiseProduct(I_inv.template cast<T>());
 
             // Disturbance forces
-            xdot.segment(14, 3) << 0, 0, 0;
+            xdot.segment(13, 3) << 0, 0, 0;
 
             // Disturbance moments
-            xdot.segment(17, 3) << 0, 0, 0;
+            xdot.segment(16, 3) << 0, 0, 0;
 
 		}
-
-    template<typename T>
-    void state_dynamics_forcemodel(state_t<T> x, state_t<T> &xdot)
-    {
-        // -------------- Simulation variables -----------------------------
-        T g0 = (T) 9.81;  // Earth gravity in [m/s^2]
-
-        Eigen::Matrix<T, 3, 1> control_force;
-        control_force << rocket_control.force.x, rocket_control.force.y, rocket_control.force.z;
-
-        Eigen::Matrix<T, 3, 1> control_torque;
-        control_torque << rocket_control.torque.x, rocket_control.torque.y, rocket_control.torque.z;
-
-        // Orientation of the rocket with quaternion
-        Eigen::Quaternion<T> attitude(x(9), x(6), x(7), x(8));
-        attitude.normalize();
-        Eigen::Matrix<T, 3, 3> rot_matrix = attitude.toRotationMatrix();
-
-        Eigen::Matrix<T, 3, 1> dist_force;
-        dist_force << x(14),x(15),x(16);
-
-        Eigen::Matrix<T, 3, 1> dist_torque;
-        dist_torque << x(17),x(18),x(19);
-
-        // compute total force inertial frame
-        Eigen::Matrix<T, 3, 1> total_force_inertial;
-        total_force_inertial = rot_matrix*(control_force) - Eigen::Vector3d::UnitZ().template cast<T>()*(x(13)+dry_mass)*g0 + dist_force;
-
-        // compute total torque in body frame
-        Eigen::Matrix<T, 3, 1> total_torque_body;
-        total_torque_body = control_torque + rot_matrix.transpose()*dist_torque;
-
-        Eigen::Matrix<T, 3, 1> omega;
-        omega << x(10),x(11),x(12);
-        omega = rot_matrix.transpose()*omega;
-
-        // Angular velocity omega in quaternion format to compute quaternion derivative
-        Eigen::Quaternion<T> omega_quat(0.0, x(10), x(11), x(12));
-
-        //Inertia
-        Matrix<T, 3, 1> I_inv;
-        I_inv << 1 / rocket.total_Inertia[0], 1 / rocket.total_Inertia[1], 1 / rocket.total_Inertia[2];
-        Matrix<T, 3, 1> I;
-        I << rocket.total_Inertia[0], rocket.total_Inertia[1],rocket.total_Inertia[2];
-
-        // -------------- Differential equation ---------------------
-
-        // Position variation is speed
-        xdot.head(3) = x.segment(3,3);
-
-        // Speed variation is acceleration given by newton's law
-        xdot.segment(3,3) =  total_force_inertial/(x(13)+dry_mass);
-
-        // Quaternion variation is 0.5*q*omega_quat if omega is in the body frame
-        xdot.segment(6, 4) =  0.5*(attitude*omega_quat).coeffs();
-
-        // Angular speed variation is given by euler's equation if in body frame
-        xdot.segment(10, 3) = rot_matrix*(total_torque_body - omega.cross(I.template cast<T>().cwiseProduct(omega))).cwiseProduct(I_inv.template cast<T>());
-
-        // no mass variation
-        xdot(13) = 0;
-
-        // Disturbance forces
-        xdot.segment(14, 3) << 0, 0, 0;
-
-        // Disturbance moments
-        xdot.segment(17, 3) << 0, 0, 0;
-    }
+//
+//    template<typename T>
+//    void state_dynamics_forcemodel(state_t<T> x, state_t<T> &xdot)
+//    {
+//        // -------------- Simulation variables -----------------------------
+//        T g0 = (T) 9.81;  // Earth gravity in [m/s^2]
+//
+//        Eigen::Matrix<T, 3, 1> control_force;
+//        control_force << rocket_control.force.x, rocket_control.force.y, rocket_control.force.z;
+//
+//        Eigen::Matrix<T, 3, 1> control_torque;
+//        control_torque << rocket_control.torque.x, rocket_control.torque.y, rocket_control.torque.z;
+//
+//        // Orientation of the rocket with quaternion
+//        Eigen::Quaternion<T> attitude(x(9), x(6), x(7), x(8));
+//        attitude.normalize();
+//        Eigen::Matrix<T, 3, 3> rot_matrix = attitude.toRotationMatrix();
+//
+//        Eigen::Matrix<T, 3, 1> dist_force;
+//        dist_force << x(14),x(15),x(16);
+//
+//        Eigen::Matrix<T, 3, 1> dist_torque;
+//        dist_torque << x(17),x(18),x(19);
+//
+//        // compute total force inertial frame
+//        Eigen::Matrix<T, 3, 1> total_force_inertial;
+//        total_force_inertial = rot_matrix*(control_force) - Eigen::Vector3d::UnitZ().template cast<T>()*(total_mass)*g0 + dist_force;
+//
+//        // compute total torque in body frame
+//        Eigen::Matrix<T, 3, 1> total_torque_body;
+//        total_torque_body = control_torque + rot_matrix.transpose()*dist_torque;
+//
+//        Eigen::Matrix<T, 3, 1> omega;
+//        omega << x(10),x(11),x(12);
+//        omega = rot_matrix.transpose()*omega;
+//
+//        // Angular velocity omega in quaternion format to compute quaternion derivative
+//        Eigen::Quaternion<T> omega_quat(0.0, x(10), x(11), x(12));
+//
+//        //Inertia
+//        Matrix<T, 3, 1> I_inv;
+//        I_inv << 1 / rocket.total_Inertia[0], 1 / rocket.total_Inertia[1], 1 / rocket.total_Inertia[2];
+//        Matrix<T, 3, 1> I;
+//        I << rocket.total_Inertia[0], rocket.total_Inertia[1],rocket.total_Inertia[2];
+//
+//        // -------------- Differential equation ---------------------
+//
+//        // Position variation is speed
+//        xdot.head(3) = x.segment(3,3);
+//
+//        // Speed variation is acceleration given by newton's law
+//        xdot.segment(3,3) =  total_force_inertial/(x(13)+dry_mass);
+//
+//        // Quaternion variation is 0.5*q*omega_quat if omega is in the body frame
+//        xdot.segment(6, 4) =  0.5*(attitude*omega_quat).coeffs();
+//
+//        // Angular speed variation is given by euler's equation if in body frame
+//        xdot.segment(10, 3) = rot_matrix*(total_torque_body - omega.cross(I.template cast<T>().cwiseProduct(omega))).cwiseProduct(I_inv.template cast<T>());
+//
+//        // no mass variation
+//        xdot(13) = 0;
+//
+//        // Disturbance forces
+//        xdot.segment(14, 3) << 0, 0, 0;
+//
+//        // Disturbance moments
+//        xdot.segment(17, 3) << 0, 0, 0;
+//    }
 
         template<typename T>
         void mesurementModelBaro(const state_t<T> &x, sensor_data_baro_t<T> &z) {
@@ -697,8 +701,13 @@ public:
             Eigen::Matrix<T, 3, 1> mag_vec;
             mag_vec << 1.0,0.0,0.0;
 
+            //rot_mag << cos(mag_declination),-sin(mag_declination),0.0,sin(mag_declination),cos(mag_declination),0.0,0.0,0.0,1.0;
+
+
             // express inertial magnetic vector estimate in body-frame and add bias
-            z = rot_matrix.transpose()*(mag_vec) + mag_bias;
+            //z = rot_matrix.transpose()*(rot_mag*mag_vec) - mag_bias;
+            z = rot_matrix.transpose()*(mag_vec) - mag_bias;
+
         }
 
         template<typename T>
@@ -713,18 +722,18 @@ public:
             control_force << rocket_control.force.x, rocket_control.force.y, rocket_control.force.z;
 
             Eigen::Matrix<T, 3, 1> dist_force;
-            dist_force << x(14),x(15),x(16);
+            dist_force << x(13),x(14),x(15);
 
             Eigen::Matrix<T, 3, 1> total_force_inertial;
-            total_force_inertial = rot_matrix*(control_force) - Eigen::Vector3d::UnitZ().template cast<T>()*(x(13)+dry_mass)*g0 + dist_force;
+            total_force_inertial = rot_matrix*(control_force) - Eigen::Vector3d::UnitZ().template cast<T>()*(total_mass)*g0 + dist_force;
 
             // express inertial magnetic vector estimate in body-frame and add bias
-            z = rot_matrix.transpose()*(total_force_inertial/(dry_mass+x(13))) + acc_bias;
+            z = rot_matrix.transpose()*(total_force_inertial/(total_mass)) - acc_bias;
         }
 
         template<typename T>
         void mesurementModelGPS(const state_t<T> &x, sensor_data_gps_t<T> &z) {
-            z = x.segment(0,6);
+            z = x.segment(0,3);
         }
 
         template<typename T>
@@ -734,11 +743,7 @@ public:
 
         template<typename T>
         void mesurementModelGyro(const state_t<T> &x, sensor_data_gyro_t<T> &z) {
-            Eigen::Quaternion<T> attitude(x(9), x(6), x(7), x(8));
-            attitude.normalize();
-            Eigen::Matrix<T, 3, 3> rot_matrix = attitude.toRotationMatrix();
-
-            z = rot_matrix.transpose()*(x.segment(10,3))+gyro_bias;
+            z = x.segment(10,3)-gyro_bias;
         }
 		
 		void fullDerivative(const state &x,
@@ -769,12 +774,7 @@ public:
         		state_matrix k1_P, k2_P, k3_P, k4_P;
 
                  //update rotation speed to those of gyro
-                Matrix<double,3,1>omega_b;
-                Eigen::Quaternion<double> attitude(X(9), X(6), X(7), X(8));
-                attitude.normalize();
-                Eigen::Matrix<double, 3, 3> rot_matrix = attitude.toRotationMatrix();
-                omega_b <<rocket_sensor.IMU_gyro.x-gyro_bias(0), rocket_sensor.IMU_gyro.y-gyro_bias(1), rocket_sensor.IMU_gyro.z-gyro_bias(2);
-                X.segment(10,3) = rot_matrix*omega_b;
+                X.segment(10,3) <<  rocket_sensor.IMU_gyro.x-gyro_bias(0), rocket_sensor.IMU_gyro.y-gyro_bias(1), rocket_sensor.IMU_gyro.z-gyro_bias(2);
 
                 //RK4 integration
         		fullDerivative(X, P, k1, k1_P);
@@ -786,26 +786,26 @@ public:
                 Pnext = P + (k1_P + 2 * k2_P + 2 * k3_P + k4_P) * dT / 6;
         }
 
-    void RK4_fakesensor(const double dT,state &X,state &Xnext) {
-        state k1, k2, k3, k4, Xinter;
-
-        state_dynamics_forcemodel(X, k1);Xinter = X + k1 * dT / 2;
-        state_dynamics_forcemodel( Xinter, k2);Xinter = X + k2 * dT / 2;
-        state_dynamics_forcemodel( Xinter, k3); Xinter = X + k3 * dT;
-        state_dynamics_forcemodel( Xinter, k4);
-
-        Xnext = X + (k1 + 2 * k2 + 2 * k3 + k4) * dT / 6;
-
-    }
+//    void RK4_fakesensor(const double dT,state &X,state &Xnext) {
+//        state k1, k2, k3, k4, Xinter;
+//
+//        state_dynamics_forcemodel(X, k1);Xinter = X + k1 * dT / 2;
+//        state_dynamics_forcemodel( Xinter, k2);Xinter = X + k2 * dT / 2;
+//        state_dynamics_forcemodel( Xinter, k3); Xinter = X + k3 * dT;
+//        state_dynamics_forcemodel( Xinter, k4);
+//
+//        Xnext = X + (k1 + 2 * k2 + 2 * k3 + k4) * dT / 6;
+//
+//    }
 
 		void predict_step()
 		{
 			static double last_predict_time = ros::Time::now().toSec();
 			double dT = ros::Time::now().toSec() - last_predict_time;
 			RK4(dT,X,P,X,P);
-            RK4_fakesensor(dT,X,Z_fakesensor);
+            //RK4_fakesensor(dT,X,Z_fakesensor);
 			last_predict_time = ros::Time::now().toSec();
-		}
+        }
 
 
         void update_step_baro(const sensor_data_baro &z)
@@ -986,6 +986,7 @@ public:
 
             }
 
+
 			// Parse navigation state and publish it on the /nav_pub topic
 			real_time_simulator::State rocket_state;
 
@@ -1002,11 +1003,19 @@ public:
 			rocket_state.pose.orientation.z = X(8);
 			rocket_state.pose.orientation.w = X(9);
 
-			rocket_state.twist.angular.x = X(10);
-			rocket_state.twist.angular.y = X(11);
-			rocket_state.twist.angular.z = X(12);
+            Eigen::Quaternion<double> attitude(X(9), X(6), X(7), X(8));
+            attitude.normalize();
+            Eigen::Matrix<double, 3, 3> rot_matrix = attitude.toRotationMatrix();
+            Matrix<double,3,1> omega_body;
+            omega_body << X(10),X(11),X(12);
+            Matrix<double,3,1> omega_inertial;
+            omega_inertial = rot_matrix*omega_body;
 
-			rocket_state.propeller_mass = X(13);
+			rocket_state.twist.angular.x = omega_inertial(0);
+			rocket_state.twist.angular.y = omega_inertial(1);
+			rocket_state.twist.angular.z = omega_inertial(2);
+
+			rocket_state.propeller_mass = rocket.propellant_mass;
 
 			nav_pub.publish(rocket_state);
 

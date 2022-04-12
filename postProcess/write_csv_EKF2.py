@@ -25,7 +25,7 @@ import time
 import rosbag
 
 tStart = 0
-tEnd = 22
+tEnd = 50
 
 # Simulated state
 position = np.zeros((1,3))
@@ -44,7 +44,7 @@ prop_mass_est = np.zeros((1,1))
 time_state_est = np.zeros((1,1))
 
 # state covariance matrix from navigation
-covariance = np.zeros((1,33))
+covariance = np.zeros((1,19))
 quat_covariance = np.zeros((1,4*4))
 
 # Controled forces and torque
@@ -86,8 +86,8 @@ for topic, msg, t in bag.read_messages(topics=['/state_covariance']):
     new_cov.flatten()
     new_quat_cov = np.asarray(msg.quat_covariance)
     new_quat_cov.flatten()
-    #covariance = np.append(covariance,[new_cov],axis = 0)
-    #quat_covariance = np.append(quat_covariance,[new_quat_cov],axis=0)
+    covariance = np.append(covariance,[new_cov],axis = 0)
+    quat_covariance = np.append(quat_covariance,[new_quat_cov],axis=0)
 #print(covariance)
 
 for topic, msg, t in bag.read_messages(topics=['/kalman_rocket_state']):
@@ -178,10 +178,10 @@ with open('kalman_state_data.csv','w',newline='') as csvfile:
         state_index +=1
 
 # export kalman covarience to csv
-# with open('kalman_covariance_diagonal.csv','w',newline='') as csvfile:
-#     fieldnames = ['time_state','pos_x','pos_y','pos_z','vel_x','vel_y','vel_z','qx','qy','qz','qw','omega_x','omega_y','omega_z','mass']
-#     thewriter = csv.DictWriter(csvfile,fieldnames=fieldnames)
-#     #thewriter.writeheader()
+with open('kalman_covariance_diagonal.csv','w',newline='') as csvfile:
+    fieldnames = ['time_state','pos_x','pos_y','pos_z','vel_x','vel_y','vel_z','qx','qy','qz','qw','omega_x','omega_y','omega_z','mass']
+    thewriter = csv.DictWriter(csvfile,fieldnames=fieldnames)
+    #thewriter.writeheader()
 
     state_index = 0
     for time_state_index in time_state_est:
