@@ -37,6 +37,10 @@ interp_state_vel_z = interp1(state_data(:,1),state_data(:,7),tt_kal);
 
 interp_state_mass = interp1(state_data(:,1),state_data(:,15),tt_kal);
 
+interp_state_om_x = interp1(state_data(:,1),state_data(:,12),tt_kal);
+interp_state_om_y = interp1(state_data(:,1),state_data(:,13),tt_kal);
+interp_state_om_z = interp1(state_data(:,1),state_data(:,14),tt_kal);
+
 % calculate errors
 err_x = kalman_state_data(:,2)-interp_state_x;
 err_y = kalman_state_data(:,3)-interp_state_y;
@@ -47,6 +51,11 @@ err_vel_y = kalman_state_data(:,6)-interp_state_vel_y;
 err_vel_z = kalman_state_data(:,7)-interp_state_vel_z;
 
 err_mass = kalman_state_data(:,15)-interp_state_mass;
+
+err_om_x = kalman_state_data(:,12)-interp_state_om_x;
+err_om_y = kalman_state_data(:,13)-interp_state_om_y;
+err_om_z = kalman_state_data(:,14)-interp_state_om_z;
+
 
 
 %%  error Plot config
@@ -116,6 +125,34 @@ plot(tt_kal,-Z_confidance*sqrt(kalman_covariance_diagonal_data(:,7)),'red');
 title("Kalman error in velocity z (Inertial frame)")
 xlabel("time [s]")
 ylabel("error [m/s]")
+
+%% 
+nexttile
+hold on
+plot(tt_kal,err_om_x);
+title("Kalman error in angular velocity x (Inertial frame)")
+plot(tt_kal,Z_confidance*sqrt(kalman_covariance_diagonal_data(:,12)),'red');
+plot(tt_kal,-Z_confidance*sqrt(kalman_covariance_diagonal_data(:,12)),'red');
+xlabel("time [s]")
+ylabel("error [rad/s]")
+
+nexttile
+hold on
+plot(tt_kal,err_om_y);
+title("Kalman error in angular velocity y (Inertial frame)")
+plot(tt_kal,Z_confidance*sqrt(kalman_covariance_diagonal_data(:,13)),'red');
+plot(tt_kal,-Z_confidance*sqrt(kalman_covariance_diagonal_data(:,13)),'red');
+xlabel("time [s]")
+ylabel("error [rad/s]")
+
+nexttile
+hold on
+plot(tt_kal,err_om_z);
+plot(tt_kal,Z_confidance*sqrt(kalman_covariance_diagonal_data(:,14)),'red');
+plot(tt_kal,-Z_confidance*sqrt(kalman_covariance_diagonal_data(:,14)),'red');
+title("Kalman error in angular velocity z (Inertial frame)")
+xlabel("time [s]")
+ylabel("error [rad/s]")
 
 %% attitude
 
