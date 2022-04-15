@@ -1,0 +1,33 @@
+<launch>
+        <node pkg="mavros" type="mavros_node" name="mavros" clear_params="true" output="screen" respawn="false">
+                <param name="fcu_url" value="/dev/ttyS0:921600" />
+                <param name="gcs_url" value="" />
+                <param name="target_system_id" value="1" />
+                <param name="target_component_id" value="1" />
+                <param name="fcu_protocol" value="v2.0" />
+
+                <rosparam command="load" file="$(find mavros)/launch/px4_pluginlists.yaml" />
+                <rosparam command="load" file="$(find mavros)/launch/px4_config.yaml" />
+        </node>
+
+    <node name="drone_mavros_interface" pkg="drone_gnc" type="drone_mavros_interface">
+
+                <param name="enable_rc_control" value="false" />
+                <rosparam param="servo1_offset">43</rosparam>
+                <rosparam param="servo2_offset">1</rosparam>
+        </node>
+
+    <param name="gnc_package" type="str" value="rocket_gnc" />
+
+      <group ns="rocket">
+          <rosparam file="$(find rocket_gnc)/config/rocket_parameters.yaml" />
+      </group>
+
+      <node name="rocket_control" pkg="rocket_gnc" type="rocket_control" output ="screen"/>
+      <node name="rocket_navigation_ekf" pkg="rocket_gnc" type="rocket_navigation_ekf" output ="screen"/>
+      <node name="rocket_guidance" pkg="rocket_gnc" type="rocket_guidance" output ="screen"/>
+      <node name="rocket_fsm" pkg="rocket_gnc" type="rocket_fsm" output ="screen"/>
+</launch>
+
+
+

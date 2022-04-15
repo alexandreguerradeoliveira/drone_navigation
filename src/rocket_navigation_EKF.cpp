@@ -43,9 +43,13 @@
 #include <chrono>
 #include <iomanip>
 
-#include "Eigen/Core"
-#include "Eigen/Geometry"
-#include <unsupported/Eigen/EulerAngles>
+//#include "Eigen/Core"
+//#include "Eigen/Geometry"
+//#include <unsupported/Eigen/EulerAngles>
+#include "eigen3/Eigen/Core"
+#include "eigen3/Eigen/Geometry"
+#include <eigen3/unsupported/Eigen/EulerAngles>
+
 
 #include "rocket_model.hpp"
 #include "mesurement_models.hpp"
@@ -65,8 +69,8 @@ class NavigationNode {
 	public:
         const float dt_ros = 0.005;
 
-        const int simulation = 1; // 1=runs in simulation (SIL), 0=runs on drone with optitrack
-        const int use_gps = 0; // 0=use optitrack, 1=use px4 gps
+        const int simulation = 0; // 1=runs in simulation (SIL), 0=runs on drone with optitrack
+        const int use_gps = 1; // 0=use optitrack, 1=use px4 gps
 
         static const int NX = 19; // number of states
 
@@ -242,14 +246,14 @@ class NavigationNode {
     float dry_mass;
 
     int gps_started = 0; // autmatically set to 0 once gps fix arrives
-    float kx = 0;
-    float ky = 0;
-    float gps_latitude0 = 0;
-    float gps_longitude0 = 0;
-    float gps_alt0 = 0;
-    float gps_latitude = 0;
-    float gps_longitude = 0;
-    float gps_alt = 0;
+    double kx = 0;
+    double ky = 0;
+    double gps_latitude0 = 0;
+    double gps_longitude0 = 0;
+    double gps_alt0 = 0;
+    double gps_latitude = 0;
+    double gps_longitude = 0;
+    double gps_alt = 0;
 
     Matrix<double,3,1> acc_bias;
     Matrix<double,3,1> gyro_bias;
@@ -270,6 +274,11 @@ class NavigationNode {
     Matrix<double, 3, 1> IMU_acc;
 
 
+    // calibration params
+
+    Matrix<double,3,1> sum_acc;
+    Matrix<double,3,1> sum_gyro;
+    int calibration_counter = 0;
 
 
 public:
@@ -309,6 +318,9 @@ public:
             mag_bias << 0,0,0;
             baro_bias = 0;
 
+            sum_acc << 0,0,0;
+            sum_gyro << 0,0,0;
+
 
             /// Init state X
             total_mass = rocket.propellant_mass+dry_mass;
@@ -319,8 +331,6 @@ public:
             /// Initialize kalman parameters
             // sensor covarience matrices
             R_baro(0,0) = 0.001*0.001;
-
-
 
             R_gps.setIdentity();
             R_gps = R_gps*0.008*0.008;
@@ -364,7 +374,7 @@ public:
 
             Q.block(10,10,3,3) =  Eigen::Matrix<double, 3, 3>::Identity(3, 3)*0.01*0.01;
             Q.block(13,13,6,6) =Eigen::Matrix<double, 6, 6>::Identity(6, 6) *0.1;
-
+            /// End init kalman parameters
 
             // Init derivatives
         		ADx(X);
@@ -436,6 +446,19 @@ public:
             rocket_sensor.IMU_gyro = sensor->angular_velocity;
 
 
+            if(rocket_fsm.state_machine.compare("Idle") == 0)
+            {
+                if(calibration_counter<1000){
+                    calibrate_imu();
+                }else{
+                   predict_step();
+                }
+                //calibrate_imu();
+
+
+
+            }
+
             if(rocket_fsm.state_machine.compare("Coast") == 0||rocket_fsm.state_machine.compare("Launch") == 0||rocket_fsm.state_machine.compare("Rail") == 0)
             {
                 predict_step();
@@ -449,7 +472,7 @@ public:
 
             if(rocket_fsm.state_machine.compare("Coast") == 0||rocket_fsm.state_machine.compare("Launch") == 0||rocket_fsm.state_machine.compare("Rail") == 0)
             {
-                predict_step();
+                //predict_step();
                 //update_step_mag(mag_data);
             }
         }
@@ -460,28 +483,48 @@ public:
             gps_longitude = gps->longitude;
             gps_alt = gps->altitude;
 
-            // setup origin for gps
-            if(gps_started==0){
-                gps_latitude0 = gps_latitude;
-                gps_longitude0 = gps_longitude;
-                gps_alt0 = gps_alt;
+            R_gps(0,0) = gps->position_covariance[0];
+            R_gps(1,1) = gps->position_covariance[4];
+            R_gps(2,2) = gps->position_covariance[8];
 
-                latlongtometercoeffs(gps_latitude0,kx,ky);
-                gps_started = 1;
+            //std::cout << R_gps << std::endl;
+
+            if(rocket_fsm.state_machine.compare("Idle") == 0||gps_started==0)
+            {
+                //test
+                if(calibration_counter<1000){
+                    gps_latitude0 = gps_latitude;
+                    gps_longitude0 = gps_longitude;
+                    gps_alt0 = gps_alt;
+                    latlongtometercoeffs(gps_latitude0,kx,ky);
+                    gps_started = 1;
+                }
+                //endtest
+
             }
 
-//            float gps_x = (gps_latitude-gps_latitude0)*kx;
-//            float gps_y = (gps_longitude-gps_longitude0)*ky;
-//            float gps_z = (gps_alt-gps_alt0);
-            //gps_pos << (gps_latitude-gps_latitude0)*kx,(gps_longitude-gps_longitude0)*ky,(gps_alt-gps_alt0);
+            double gps_x = (gps_latitude-gps_latitude0)*kx;
+            double gps_y = (gps_longitude-gps_longitude0)*ky;
+            double gps_z = (gps_alt-gps_alt0);
+
+            gps_pos << gps_x,gps_y,gps_z;
+
+            //std::cout << gps_x << " " << gps_y << " " << gps_z << "\n";
+
+            //test
+            if(calibration_counter<1000){
+            }else{
+                predict_step();
+                update_step_gps(gps_pos);
+            }
+            //endtest
 
 
-//
-//            if(rocket_fsm.state_machine.compare("Coast") == 0||rocket_fsm.state_machine.compare("Launch") == 0||rocket_fsm.state_machine.compare("Rail") == 0)
-//            {
-//                predict_step();
-//                update_step_gps_pos(gps_pos);
-//            }
+            if(rocket_fsm.state_machine.compare("Coast") == 0||rocket_fsm.state_machine.compare("Launch") == 0||rocket_fsm.state_machine.compare("Rail") == 0)
+            {
+                predict_step();
+                update_step_gps(gps_pos);
+            }
         }
 
 
@@ -557,6 +600,27 @@ public:
 		}
 
 		/* ------------ User functions ------------ */
+        void calibrate_imu(){
+
+            double g0 = 9.81;
+
+            Matrix<double,3,1> IMU_omega_b_raw; IMU_omega_b_raw<< rocket_sensor.IMU_gyro.x, rocket_sensor.IMU_gyro.y, rocket_sensor.IMU_gyro.z;
+            Matrix<double,3,1> IMU_acc_raw; IMU_acc_raw << rocket_sensor.IMU_acc.x, rocket_sensor.IMU_acc.y, rocket_sensor.IMU_acc.z-g0;
+
+
+            sum_acc = sum_acc+IMU_acc_raw;
+            sum_gyro = sum_gyro+IMU_omega_b_raw;
+            calibration_counter++;
+
+            gyro_bias = sum_gyro/calibration_counter;
+            acc_bias = sum_acc/calibration_counter;
+
+            //std::cout << "bias acc:" << acc_bias << "\n\n";
+            //std::cout << "bias gyro:" << gyro_bias << "\n\n";
+            std::cout << "calibration counter:" << calibration_counter << "\n\n";
+
+
+        }
 
     template<int nz>
     void EKF_update(state &X,state_matrix &P,Matrix<double,nz,NX> H,Matrix<double, nz, nz> R,Matrix<double, nz, 1> inov){
@@ -576,7 +640,7 @@ public:
         P = IKH * P * IKH.transpose() + K * R * K.transpose();
     }
 
-    void latlongtometercoeffs(float lat0,float &kx,float &ky){
+    void latlongtometercoeffs(double lat0,double &kx,double &ky){
         kx = 111132.92-559.82*cos(2*lat0)+1.175*cos(4*lat0)-0.0023*cos(6*lat0); // meters per degree of latitude
         ky = 111412.84*cos(lat0)-93.5*cos(3*lat0)+0.118*cos(5*lat0); // meters per degree of longitude
     }
@@ -646,6 +710,16 @@ public:
 
 		void predict_step()
 		{
+
+            Eigen::Quaternion<double> attitude(X(9), X(6), X(7), X(8));
+            Matrix<double,3,3> R = attitude.toRotationMatrix();
+
+            double alpha = atan2(-R(1,2),R(2,2));
+            double beta = atan2(R(0,2),sqrt(R(0,0) * R(0,0) + R(0,1) * R(0,1)));
+            double gamma = atan2(-R(0,1),R(0,0));
+            std::cout << "alpha:" << alpha/DEG2RAD << " beta:" << beta/DEG2RAD << " gamma:" << gamma/DEG2RAD << "\n\n";
+
+
             static double last_predict_time = ros::Time::now().toSec();
 			double dT = ros::Time::now().toSec() - last_predict_time;
             RK4(dT,X,P,X,P);

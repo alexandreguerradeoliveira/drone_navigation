@@ -2,8 +2,10 @@
  * Prediction (integration) models used in the EKF node.
  * Alexandre Guerra de Oliveira
  */
-#include "Eigen/Core"
-#include "Eigen/Geometry"
+//#include "Eigen/Core"
+//#include "Eigen/Geometry"
+#include "eigen3/Eigen/Core"
+#include "eigen3/Eigen/Geometry"
 using namespace Eigen;
 
 

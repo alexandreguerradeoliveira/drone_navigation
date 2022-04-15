@@ -180,11 +180,6 @@ class FsmNode {
 };
 
 
-
-
-
-
-
 int main(int argc, char **argv)
 {
 
