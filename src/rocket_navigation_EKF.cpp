@@ -32,6 +32,7 @@
 #include "sensor_msgs/Imu.h"
 #include "sensor_msgs/MagneticField.h"
 #include "sensor_msgs/NavSatFix.h"
+#include "sensor_msgs/FluidPressure.h"
 
 
 #include <time.h>
@@ -184,10 +185,12 @@ class NavigationNode {
         ros::Subscriber px4_imu_sub;
         ros::Subscriber px4_mag_sub;
         ros::Subscriber px4_gps_sub;
+        ros::Subscriber px4_baro_sub;
 
 
 
-    // Kalman matrix
+
+        // Kalman matrix
         sensor_matrix_baro R_baro;
         sensor_matrix_gps R_gps;
         sensor_matrix_mag R_mag;
@@ -195,7 +198,6 @@ class NavigationNode {
         sensor_matrix_gyro R_gyro;
         sensor_matrix_fsen R_fsen;
         sensor_matrix_optitrack R_optitrack;
-
 
 
     /// EKF matrices
@@ -261,6 +263,8 @@ class NavigationNode {
     double baro_bias;
 
     double total_mass;
+
+    double pressure0; // pressure of barometer at the origin
 
     //Inertia
     Matrix<double, 3, 1> I_inv;
@@ -401,6 +405,8 @@ public:
 
                 px4_mag_sub = nh.subscribe("/mavros/imu/mag", 1, &NavigationNode::px4magCallback, this);
 
+                px4_baro_sub = nh.subscribe("/mavros/imu/static_pressure", 1, &NavigationNode::px4baroCallback, this);
+
                 if(use_gps==1){
                     px4_gps_sub = nh.subscribe("/mavros/global_position/raw/fix", 1, &NavigationNode::px4gpsCallback, this);
                 }else{
@@ -448,13 +454,14 @@ public:
 
             if(rocket_fsm.state_machine.compare("Idle") == 0)
             {
+                //test
                 if(calibration_counter<1000){
                     calibrate_imu();
                 }else{
                    predict_step();
                 }
                 //calibrate_imu();
-
+                //test end
 
 
             }
@@ -477,6 +484,33 @@ public:
             }
         }
 
+        void px4baroCallback(const sensor_msgs::FluidPressure::ConstPtr& sensor){
+            double g0 = 9.81;
+            double rho0 = 1.225;
+            double pressure = sensor->fluid_pressure;
+            sensor_data_baro z_baro; z_baro(0) = (pressure - pressure0)/(rho0*g0);
+
+
+            if(rocket_fsm.state_machine.compare("Idle") == 0)
+            {
+                //test
+                if(calibration_counter<1000){
+                    pressure0 = pressure;
+                }else{
+                    update_step_baro(z_baro);
+                }
+                //endtest
+
+            }
+
+            if(rocket_fsm.state_machine.compare("Coast") == 0||rocket_fsm.state_machine.compare("Launch") == 0||rocket_fsm.state_machine.compare("Rail") == 0)
+            {
+                predict_step();
+                update_step_baro(z_baro);
+            }
+
+        }
+
         void px4gpsCallback(const sensor_msgs::NavSatFix::ConstPtr& gps)
         {
             gps_latitude = gps->latitude;
@@ -486,8 +520,6 @@ public:
             R_gps(0,0) = gps->position_covariance[0];
             R_gps(1,1) = gps->position_covariance[4];
             R_gps(2,2) = gps->position_covariance[8];
-
-            //std::cout << R_gps << std::endl;
 
             if(rocket_fsm.state_machine.compare("Idle") == 0||gps_started==0)
             {
@@ -508,8 +540,6 @@ public:
             double gps_z = (gps_alt-gps_alt0);
 
             gps_pos << gps_x,gps_y,gps_z;
-
-            //std::cout << gps_x << " " << gps_y << " " << gps_z << "\n";
 
             //test
             if(calibration_counter<1000){
@@ -711,13 +741,14 @@ public:
 		void predict_step()
 		{
 
-            Eigen::Quaternion<double> attitude(X(9), X(6), X(7), X(8));
-            Matrix<double,3,3> R = attitude.toRotationMatrix();
-
-            double alpha = atan2(-R(1,2),R(2,2));
-            double beta = atan2(R(0,2),sqrt(R(0,0) * R(0,0) + R(0,1) * R(0,1)));
-            double gamma = atan2(-R(0,1),R(0,0));
-            std::cout << "alpha:" << alpha/DEG2RAD << " beta:" << beta/DEG2RAD << " gamma:" << gamma/DEG2RAD << "\n\n";
+            // //Attitude diplay on terminal
+//            Eigen::Quaternion<double> attitude(X(9), X(6), X(7), X(8));
+//            Matrix<double,3,3> R = attitude.toRotationMatrix();
+//
+//            double alpha = atan2(-R(1,2),R(2,2));
+//            double beta = atan2(R(0,2),sqrt(R(0,0) * R(0,0) + R(0,1) * R(0,1)));
+//            double gamma = atan2(-R(0,1),R(0,0));
+//            std::cout << "alpha:" << alpha/DEG2RAD << " beta:" << beta/DEG2RAD << " gamma:" << gamma/DEG2RAD << "\n\n";
 
 
             static double last_predict_time = ros::Time::now().toSec();
