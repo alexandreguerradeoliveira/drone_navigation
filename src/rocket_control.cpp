@@ -21,16 +21,16 @@
 
 #include <ros/package.h>
 
-#include "real_time_simulator/FSM.h"
-#include "real_time_simulator/State.h"
-#include "real_time_simulator/Waypoint.h"
-#include "real_time_simulator/Trajectory.h"
+#include "rocket_utils/FSM.h"
+#include "rocket_utils/State.h"
+#include "rocket_utils/Waypoint.h"
+#include "rocket_utils/Trajectory.h"
 
-#include "real_time_simulator/Control.h"
+#include "rocket_utils/Control.h"
 #include "geometry_msgs/Vector3.h"
 
-#include "real_time_simulator/GetFSM.h"
-#include "real_time_simulator/GetWaypoint.h"
+#include "rocket_utils/GetFSM.h"
+#include "rocket_utils/GetWaypoint.h"
 
 #include <time.h>
 #include <sstream>
@@ -51,10 +51,10 @@ class ControlNode {
       Rocket rocket;
 
       // Last received rocket state
-      real_time_simulator::State rocket_state;
+      rocket_utils::State rocket_state;
 
       // Last requested fsm
-      real_time_simulator::FSM rocket_fsm;
+      rocket_utils::FSM rocket_fsm;
 
       // List of subscribers and publishers
       ros::Publisher control_pub;
@@ -63,7 +63,7 @@ class ControlNode {
       ros::Subscriber fsm_sub;
 
       ros::ServiceClient client_fsm;
-      real_time_simulator::GetFSM srv_fsm;
+      rocket_utils::GetFSM srv_fsm;
 
     public:
 
@@ -83,7 +83,7 @@ class ControlNode {
       void initTopics(ros::NodeHandle &nh) 
       {
         // Create control publisher
-        control_pub = nh.advertise<real_time_simulator::Control>("control_pub", 10);
+        control_pub = nh.advertise<rocket_utils::Control>("control_pub", 10);
 
         // Subscribe to state message from basic_gnc
         rocket_state_sub = nh.subscribe("kalman_rocket_state", 1, &ControlNode::rocket_stateCallback, this);
@@ -92,28 +92,28 @@ class ControlNode {
         fsm_sub = nh.subscribe("gnc_fsm_pub", 1, &ControlNode::fsm_Callback, this);
 
         // Setup Time_keeper client and srv variable for FSM and time synchronization
-        client_fsm = nh.serviceClient<real_time_simulator::GetFSM>("getFSM_gnc");
+        client_fsm = nh.serviceClient<rocket_utils::GetFSM>("getFSM_gnc");
 
       }
 
       // Callback function to store last received state
-      void rocket_stateCallback(const real_time_simulator::State::ConstPtr& new_rocket_state)
+      void rocket_stateCallback(const rocket_utils::State::ConstPtr& new_rocket_state)
       {
         rocket_state.pose = new_rocket_state->pose;
         rocket_state.twist = new_rocket_state->twist;
         rocket_state.propeller_mass = new_rocket_state->propeller_mass;
       }
 
-      void fsm_Callback(const real_time_simulator::FSM::ConstPtr& fsm)
+      void fsm_Callback(const rocket_utils::FSM::ConstPtr& fsm)
       {
         rocket_fsm.state_machine = fsm->state_machine;
         rocket_fsm.time_now = fsm->time_now;
       }
 
-      //real_time_simulator::Control P_control()
+      //rocket_utils::Control P_control()
       //{
         // Init control message
-       // real_time_simulator::Control control_law;
+       // rocket_utils::Control control_law;
         //geometry_msgs::Vector3 thrust_force;
         //geometry_msgs::Vector3 thrust_torque;
 
@@ -138,10 +138,10 @@ class ControlNode {
           ///return control_law;
       //}
 
-    real_time_simulator::Control P_control()
+    rocket_utils::Control P_control()
     {
         // Init control message
-        real_time_simulator::Control control_law;
+        rocket_utils::Control control_law;
         geometry_msgs::Vector3 thrust_force;
         geometry_msgs::Vector3 thrust_torque;
 
@@ -171,7 +171,7 @@ class ControlNode {
       void updateControl()
       {
         // Init default control to zero
-        real_time_simulator::Control control_law;
+        rocket_utils::Control control_law;
 
         //Get current FSM and time
         if(client_fsm.call(srv_fsm))

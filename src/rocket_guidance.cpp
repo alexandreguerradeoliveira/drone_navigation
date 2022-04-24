@@ -20,16 +20,16 @@
 
 #include <ros/package.h> 
 
-#include "real_time_simulator/FSM.h"
-#include "real_time_simulator/State.h"
-#include "real_time_simulator/Waypoint.h"
-#include "real_time_simulator/Trajectory.h"
+#include "rocket_utils/FSM.h"
+#include "rocket_utils/State.h"
+#include "rocket_utils/Waypoint.h"
+#include "rocket_utils/Trajectory.h"
 
-#include "real_time_simulator/Control.h"
+#include "rocket_utils/Control.h"
 #include "geometry_msgs/Vector3.h"
 
-#include "real_time_simulator/GetFSM.h"
-#include "real_time_simulator/GetWaypoint.h"
+#include "rocket_utils/GetFSM.h"
+#include "rocket_utils/GetWaypoint.h"
 
 #include <time.h>
 #include <sstream>
@@ -47,11 +47,11 @@ class GuidanceNode{
       Rocket rocket;
 
       // Last received rocket state
-      real_time_simulator::State current_state;
+      rocket_utils::State current_state;
 
       // Last requested fsm 
-      real_time_simulator::FSM rocket_fsm;
-      real_time_simulator::GetFSM srv_fsm;
+      rocket_utils::FSM rocket_fsm;
+      rocket_utils::GetFSM srv_fsm;
 
       // List of subscribers and publishers
       ros::Publisher target_trajectory_pub;
@@ -80,10 +80,10 @@ class GuidanceNode{
       void initTopics(ros::NodeHandle &nh) 
       {
         // Create waypoint trajectory publisher
-        target_trajectory_pub = nh.advertise<real_time_simulator::Trajectory>("target_trajectory", 10);
+        target_trajectory_pub = nh.advertise<rocket_utils::Trajectory>("target_trajectory", 10);
 
         // Create control publisher
-	      control_pub = nh.advertise<real_time_simulator::Control>("control_pub", 1);
+	      control_pub = nh.advertise<rocket_utils::Control>("control_pub", 1);
 
         // Subscribe to state message from basic_gnc
         rocket_state_sub = nh.subscribe("kalman_rocket_state", 1, &GuidanceNode::rocket_stateCallback, this);
@@ -92,11 +92,11 @@ class GuidanceNode{
         fsm_sub = nh.subscribe("gnc_fsm_pub", 1, &GuidanceNode::fsm_Callback, this);
 
         // Setup Time_keeper client and srv variable for FSM and time synchronization
-        client_fsm = nh.serviceClient<real_time_simulator::GetFSM>("getFSM_gnc");
+        client_fsm = nh.serviceClient<rocket_utils::GetFSM>("getFSM_gnc");
       }
 
       // Callback function to store last received state
-      void rocket_stateCallback(const real_time_simulator::State::ConstPtr& rocket_state)
+      void rocket_stateCallback(const rocket_utils::State::ConstPtr& rocket_state)
       {
         current_state.pose = rocket_state->pose;
         current_state.twist = rocket_state->twist;
@@ -104,14 +104,14 @@ class GuidanceNode{
       }
 
 
-      void fsm_Callback(const real_time_simulator::FSM::ConstPtr& fsm)
+      void fsm_Callback(const rocket_utils::FSM::ConstPtr& fsm)
       {
         rocket_fsm.state_machine = fsm->state_machine;
         rocket_fsm.time_now = fsm->time_now;
       }
 
       // Creates very basic trajectory to reach desired points at apogee using affine functions
-      real_time_simulator::Trajectory linear_trajectory()
+      rocket_utils::Trajectory linear_trajectory()
       {
         float final_time = 20;
         static int n_point_guidance = 10;
@@ -127,11 +127,11 @@ class GuidanceNode{
         float b_z = rocket.target_apogee[2] - a_z*final_time;
 
         // Fill the trajectory points' position
-        real_time_simulator::Trajectory trajectory_msg;
+        rocket_utils::Trajectory trajectory_msg;
         int i = 0;
         for(i = 0; i<n_point_guidance; i++)
         {
-          real_time_simulator::Waypoint waypoint;
+          rocket_utils::Waypoint waypoint;
 
           waypoint.time = rocket_fsm.time_now + i*dT/(n_point_guidance-1);
 
@@ -174,7 +174,7 @@ class GuidanceNode{
             if(predicted_apogee>rocket.target_apogee[2])
             {
               // Send zero force&torque control command
-              real_time_simulator::Control control_law;
+              rocket_utils::Control control_law;
               control_pub.publish(control_law);
             }
 

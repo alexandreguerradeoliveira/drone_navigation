@@ -19,11 +19,11 @@
 
 #include "ros/ros.h"
 
-#include "real_time_simulator/FSM.h"
-#include "real_time_simulator/State.h"
-#include "real_time_simulator/Control.h"
-#include "real_time_simulator/Sensor.h"
-#include "real_time_simulator/StateCovariance.h"
+#include "rocket_utils/FSM.h"
+#include "rocket_utils/State.h"
+#include "rocket_utils/Control.h"
+#include "rocket_utils/Sensor.h"
+#include "rocket_utils/StateCovariance.h"
 
 
 #include "geometry_msgs/PoseStamped.h"
@@ -70,7 +70,7 @@ class NavigationNode {
 	public:
         const float dt_ros = 0.005;
 
-        const int simulation = 0; // 1=runs in simulation (SIL), 0=runs on drone with optitrack
+        const int simulation = 1; // 1=runs in simulation (SIL), 0=runs on drone with optitrack
         const int use_gps = 1; // 0=use optitrack, 1=use px4 gps
 
         static const int NX = 19; // number of states
@@ -164,13 +164,13 @@ class NavigationNode {
 		Rocket rocket;
 
 		// Last received fsm
-		real_time_simulator::FSM rocket_fsm;
+		rocket_utils::FSM rocket_fsm;
 
 		// Last received control
-		real_time_simulator::Control rocket_control;
+		rocket_utils::Control rocket_control;
 
 		// Last received sensor data
-		real_time_simulator::Sensor rocket_sensor;
+		rocket_utils::Sensor rocket_sensor;
 
 		// List of subscribers and publishers
 		ros::Publisher nav_pub;
@@ -293,7 +293,7 @@ public:
 
 
 			// Initialize fsm
-			rocket_fsm.time_now = 0;
+			//rocket_fsm.time_now = 0;
 			rocket_fsm.state_machine = "Idle";
 
 			// Initialize rocket class with useful parameters
@@ -417,30 +417,30 @@ public:
             }
 
 			// Create filtered rocket state publisher
-			nav_pub = nh.advertise<real_time_simulator::State>("kalman_rocket_state", 10);
+			nav_pub = nh.advertise<rocket_utils::State>("kalman_rocket_state", 10);
 
             // Create state covarience publisher
-            cov_pub = nh.advertise<real_time_simulator::StateCovariance>("state_covariance", 1);
+            cov_pub = nh.advertise<rocket_utils::StateCovariance>("state_covariance", 1);
 
 			// Subscribe to time_keeper for fsm and time
 			fsm_sub = nh.subscribe("gnc_fsm_pub", 1, &NavigationNode::fsmCallback, this);
 
 			// Subscribe to control for kalman estimator
-			control_sub = nh.subscribe("control_measured", 1, &NavigationNode::controlCallback, this);
+			//control_sub = nh.subscribe("control_measured", 1, &NavigationNode::controlCallback, this);
 
 		}
 
 		/* ------------ Callbacks functions ------------ */
 
 		// Callback function to store last received fsm
-		void fsmCallback(const real_time_simulator::FSM::ConstPtr& fsm)
+		void fsmCallback(const rocket_utils::FSM::ConstPtr& fsm)
 		{
-			rocket_fsm.time_now = fsm->time_now;
+			//rocket_fsm.time_now = fsm->time_now;
 			rocket_fsm.state_machine = fsm->state_machine;
 		}
 
 		// Callback function to store last received control
-		void controlCallback(const real_time_simulator::Control::ConstPtr& control)
+		void controlCallback(const rocket_utils::Control::ConstPtr& control)
 		{
 			rocket_control.torque = control->torque;
 			rocket_control.force = control->force;
@@ -559,7 +559,7 @@ public:
 
 
 		// Callback function to store last received sensor data from simulation
-		void sensorCallback(const real_time_simulator::Sensor::ConstPtr& sensor)
+		void sensorCallback(const rocket_utils::Sensor::ConstPtr& sensor)
 		{
             rocket_sensor.IMU_acc = sensor->IMU_acc;
             rocket_sensor.IMU_gyro = sensor->IMU_gyro;
@@ -590,7 +590,7 @@ public:
         }
 		
 		// Callback function to fake gps with sensor data !
-        void gpsCallback(const real_time_simulator::State::ConstPtr& state)
+        void gpsCallback(const rocket_utils::State::ConstPtr& state)
 		{
 			
 			static double last_predict_time_gps = ros::Time::now().toSec();
@@ -921,7 +921,7 @@ public:
 
 
 			// Parse navigation state and publish it on the /nav_pub topic
-			real_time_simulator::State rocket_state;
+			rocket_utils::State rocket_state;
 
 			rocket_state.pose.position.x = X(0);
 			rocket_state.pose.position.y = X(1);
@@ -952,7 +952,7 @@ public:
 
 			nav_pub.publish(rocket_state);
 
-            real_time_simulator::StateCovariance state_covariance;
+            rocket_utils::StateCovariance state_covariance;
 
             //std::vector<Vector3d> P_vec(NX*NX);
             Matrix<double,NX,1> P_diag;

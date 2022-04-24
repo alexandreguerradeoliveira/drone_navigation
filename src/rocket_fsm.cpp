@@ -16,34 +16,34 @@
 */
 
 #include "ros/ros.h"
-#include "real_time_simulator/FSM.h"
-#include "real_time_simulator/State.h"
-#include "real_time_simulator/Sensor.h"
-#include "real_time_simulator/Control.h"
+#include "rocket_utils/FSM.h"
+#include "rocket_utils/State.h"
+#include "rocket_utils/Sensor.h"
+#include "rocket_utils/Control.h"
 
 #include <time.h>
 
 #include <sstream>
 #include <string>
 
-#include "real_time_simulator/GetFSM.h"
+#include "rocket_utils/GetFSM.h"
 #include "std_msgs/String.h"
 
 class FsmNode {
 	private:
 
 		// Current time and state machine
-		real_time_simulator::FSM rocket_fsm;
+		rocket_utils::FSM rocket_fsm;
 		double time_zero;
 
 		// Last received sensor data
-		real_time_simulator::Sensor rocket_sensor;
+		rocket_utils::Sensor rocket_sensor;
 
 		// Last received commanded control
-		real_time_simulator::Control rocket_control;
+		rocket_utils::Control rocket_control;
 
 		// Last received rocket state
-		real_time_simulator::State rocket_state;
+		rocket_utils::State rocket_state;
 
 		// List of subscribers and publishers
 		ros::ServiceServer timer_service;
@@ -82,7 +82,7 @@ class FsmNode {
 			timer_service = nh.advertiseService("getFSM_gnc", &FsmNode::sendFSM, this);
 
 			// Create timer publisher and associated thread (100Hz)
-			timer_pub = nh.advertise<real_time_simulator::FSM>("gnc_fsm_pub", 10);
+			timer_pub = nh.advertise<rocket_utils::FSM>("gnc_fsm_pub", 10);
 
 			// Subscribe to state message
 			rocket_state_sub = nh.subscribe("kalman_rocket_state", 1, &FsmNode::rocket_stateCallback, this);
@@ -94,7 +94,7 @@ class FsmNode {
 			control_sub = nh.subscribe("control_pub", 1, &FsmNode::controlCallback, this);
 		}
 
-		void rocket_stateCallback(const real_time_simulator::State::ConstPtr& new_rocket_state)
+		void rocket_stateCallback(const rocket_utils::State::ConstPtr& new_rocket_state)
 		{
 			rocket_state.pose = new_rocket_state->pose;
 			rocket_state.twist = new_rocket_state->twist;
@@ -102,7 +102,7 @@ class FsmNode {
 		}
 
 		// Callback function to store last received sensor data
-		void sensorCallback(const real_time_simulator::Sensor::ConstPtr& new_sensor)
+		void sensorCallback(const rocket_utils::Sensor::ConstPtr& new_sensor)
 		{
 			rocket_sensor.IMU_acc = new_sensor->IMU_acc;
 			rocket_sensor.IMU_gyro = new_sensor->IMU_gyro;
@@ -110,14 +110,14 @@ class FsmNode {
 		}
 
 		// Callback function to store last received commanded control
-		void controlCallback(const real_time_simulator::Control::ConstPtr& new_control)
+		void controlCallback(const rocket_utils::Control::ConstPtr& new_control)
 		{
 			rocket_control.force = new_control->force;
 			rocket_control.torque = new_control->torque;
 		}
 
 		// Service function: send back fsm (time + state machine)
-		bool sendFSM(real_time_simulator::GetFSM::Request &req, real_time_simulator::GetFSM::Response &res)
+		bool sendFSM(rocket_utils::GetFSM::Request &req, rocket_utils::GetFSM::Response &res)
 		{
 			// Update current time
 			if (rocket_fsm.state_machine.compare("Idle") != 0) rocket_fsm.time_now = ros::Time::now().toSec() - time_zero;
