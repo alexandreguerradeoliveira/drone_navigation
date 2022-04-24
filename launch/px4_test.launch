@@ -17,16 +17,16 @@
                 <rosparam param="servo2_offset">1</rosparam>
         </node>
 
-    <param name="gnc_package" type="str" value="rocket_gnc" />
+    <param name="gnc_package" type="str" value="drone_navigation" />
 
       <group ns="rocket">
-          <rosparam file="$(find rocket_gnc)/config/rocket_parameters.yaml" />
+          <rosparam file="$(find drone_navigation)/config/rocket_parameters.yaml" />
       </group>
 
-      <node name="rocket_control" pkg="rocket_gnc" type="rocket_control" output ="screen"/>
-      <node name="rocket_navigation_ekf" pkg="rocket_gnc" type="rocket_navigation_ekf" output ="screen"/>
-      <node name="rocket_guidance" pkg="rocket_gnc" type="rocket_guidance" output ="screen"/>
-      <node name="rocket_fsm" pkg="rocket_gnc" type="rocket_fsm" output ="screen"/>
+      <node name="rocket_control" pkg="drone_navigation" type="rocket_control" output ="screen"/>
+      <node name="rocket_navigation_ekf" pkg="drone_navigation" type="rocket_navigation_ekf" output ="screen"/>
+      <node name="rocket_guidance" pkg="drone_navigation" type="rocket_guidance" output ="screen"/>
+      <node name="rocket_fsm" pkg="drone_navigation" type="rocket_fsm" output ="screen"/>
 </launch>
 
 

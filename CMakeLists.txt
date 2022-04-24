@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0.2)
-project(rocket_gnc)
+project(drone_navigation)
 
 set(CMAKE_MODULE_PATH /usr/local/share/cmake/Modules/)
 

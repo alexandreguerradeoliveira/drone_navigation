@@ -15,6 +15,6 @@ mv ${SCRIPTPATH}/../src/rocket_fsm.cpp ${SCRIPTPATH}/../src/${packageName}_fsm.c
 
 mv ${SCRIPTPATH}/../launch/rocket_SIL.launch ${SCRIPTPATH}/../launch/${packageName}_SIL.launch 
 
-mv ${SCRIPTPATH}/../../rocket_gnc ${SCRIPTPATH}/../../${packageName}_gnc 
+mv ${SCRIPTPATH}/../../drone_navigation ${SCRIPTPATH}/../../${packageName}_gnc
 
 echo "Updated name of package to $packageName""_gnc"

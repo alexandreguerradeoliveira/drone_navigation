@@ -96,7 +96,7 @@ public:
     }
 
     void load_motor() {
-        std::string path = ros::package::getPath("rocket_gnc") + "/config/motor_file.txt";
+        std::string path = ros::package::getPath("drone_navigation") + "/config/motor_file.txt";
 
         std::string line;
         std::ifstream myfile(path);

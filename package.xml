@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>rocket_gnc</name>
+  <name>drone_navigation</name>
   <version>1.0.0</version>
   <description>A template package for GNC projects</description>
 

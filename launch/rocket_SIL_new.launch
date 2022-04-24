@@ -1,16 +1,16 @@
-<!-- Launch file to activate real-time simulator and connect to it the rocket_gnc algorithms-->
+<!-- Launch file to activate real-time simulator and connect to it the drone_navigation algorithms-->
 <launch>
 
-  <param name="gnc_package" type="str" value="rocket_gnc" />
+  <param name="gnc_package" type="str" value="drone_navigation" />
 
   <param name="simulation" type="int" value="3" />
 
   <group ns="rocket">
-      <rosparam file="$(find rocket_gnc)/config/rocket_parameters.yaml" />
+      <rosparam file="$(find drone_navigation)/config/rocket_parameters.yaml" />
   </group>
 
   <group ns="environment">
-      <rosparam file="$(find rocket_gnc)/config/environment_parameters.yaml" />
+      <rosparam file="$(find drone_navigation)/config/environment_parameters.yaml" />
   </group>
 
   <group ns="perturbation">
@@ -22,11 +22,11 @@
   </group>
 ''
 
-  <node name="rocket_control" pkg="rocket_gnc" type="rocket_control" output ="screen"/>
-  <node name="rocket_navigation_ekf" pkg="rocket_gnc" type="rocket_navigation_ekf" output ="screen"/>
-  <node name="rocket_guidance" pkg="rocket_gnc" type="rocket_guidance" output ="screen"/>
-  <node name="rocket_fsm" pkg="rocket_gnc" type="rocket_fsm" output ="screen"/>
-  <node name="av_interface" pkg="rocket_gnc" type="av_interface.py" output ="screen"/>
+  <node name="rocket_control" pkg="drone_navigation" type="rocket_control" output ="screen"/>
+  <node name="rocket_navigation_ekf" pkg="drone_navigation" type="rocket_navigation_ekf" output ="screen"/>
+  <node name="rocket_guidance" pkg="drone_navigation" type="rocket_guidance" output ="screen"/>
+  <node name="rocket_fsm" pkg="drone_navigation" type="rocket_fsm" output ="screen"/>
+  <node name="av_interface" pkg="drone_navigation" type="av_interface.py" output ="screen"/>
 
   <node name="aerodynamic" pkg="real_time_simulator" type="aerodynamic.py" cwd = "node" />
   <node name="disturbance" pkg="real_time_simulator" type="disturbance.py" cwd = "node"/>
