@@ -25,6 +25,7 @@ include_directories(polympc/src)
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
+find_package(Eigen3 REQUIRED)
 find_package(catkin REQUIRED COMPONENTS
         roscpp
         rospy
@@ -239,11 +240,11 @@ catkin_install_python(PROGRAMS
 #add_dependencies(rocket_guidance ${${PROJECT_NAME}_EXPORTED_TARGETS})
 
 add_executable(rocket_navigation_ekf src/rocket_navigation_EKF.cpp)
-target_link_libraries(rocket_navigation_ekf ${catkin_LIBRARIES})
+target_link_libraries(rocket_navigation_ekf Eigen3::Eigen ${catkin_LIBRARIES})
 add_dependencies(rocket_navigation_ekf ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 add_executable(rocket_navigation_mekf src/rocket_navigation_MEKF.cpp)
-target_link_libraries(rocket_navigation_mekf ${catkin_LIBRARIES})
+target_link_libraries(rocket_navigation_mekf Eigen3::Eigen ${catkin_LIBRARIES})
 add_dependencies(rocket_navigation_mekf ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 
