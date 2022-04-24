@@ -188,8 +188,6 @@ class NavigationNode {
         ros::Subscriber px4_baro_sub;
 
 
-
-
         // Kalman matrix
         sensor_matrix_baro R_baro;
         sensor_matrix_gps R_gps;

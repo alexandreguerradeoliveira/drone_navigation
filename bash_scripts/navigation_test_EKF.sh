@@ -1,8 +1,8 @@
 #!/bin/bash
 set -e
-cd ~/catkin_ws
+cd ~/drone_ws
 catkin_make
 
-rm -f catkin_ws/src/real_time_simulator/log/log.bag
+rm -f drone_ws/src/real_time_simulator/log/log.bag
 
-roslaunch drone_navigation rocket_SIL.launch
+roslaunch drone_navigation template_SIL.launch
