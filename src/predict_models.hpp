@@ -31,7 +31,6 @@ class PredictionModels{
         // Angular velocity omega in quaternion format to compute quaternion derivative
         Quaternion<T> omega_quat(0.0, IMU_omega_b(0), IMU_omega_b(1), IMU_omega_b(2));
 
-
         Matrix<T, 3, 1> dist_force_inertial;
         dist_force_inertial << x(13),x(14),x(15);
 
@@ -40,7 +39,9 @@ class PredictionModels{
 
         // compute total torque in body frame
         Matrix<T, 3, 1> total_torque_body;
-        total_torque_body =  control_torque_body+rot_matrix.transpose()*(dist_torque_inertial);
+        total_torque_body = rot_matrix.transpose()*(dist_torque_inertial) + control_torque_body;
+        //total_torque_body =  rot_matrix.transpose()*(dist_torque_inertial);
+
 
         // -------------- Differential equation ---------------------
 
@@ -55,6 +56,7 @@ class PredictionModels{
 
         // Angular speed
         xdot.segment(10, 3) = (total_torque_body - IMU_omega_b.cross(I.template cast<T>().cwiseProduct(IMU_omega_b))).cwiseProduct(I_inv.template cast<T>());
+
 
         // Disturbance forces
         xdot.segment(13, 3) << 0, 0, 0;

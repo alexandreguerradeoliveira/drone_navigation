@@ -10,21 +10,17 @@
                 <rosparam command="load" file="$(find mavros)/launch/px4_config.yaml" />
         </node>
 
-    <node name="mavros_interface" pkg="mavros_interface" type="mavros_interface_node">
-
-                <param name="enable_rc_control" value="false" />
-                <rosparam param="servo1_offset">43</rosparam>
-                <rosparam param="servo2_offset">1</rosparam>
-        </node>
-
     <param name="gnc_package" type="str" value="drone_navigation" />
 
       <group ns="rocket">
           <rosparam file="$(find drone_navigation)/config/rocket_parameters.yaml" />
       </group>
 
-      <node name="rocket_navigation_ekf" pkg="drone_navigation" type="rocket_navigation_ekf" output ="screen"/>
-      <node name="template_fsm" pkg="template_fsm" type="template_fsm_node" output ="screen"/>
+      <node name="rocket_navigation_ekf" pkg="drone_navigation" type="rocket_navigation_ekf" output ="screen">
+           <rosparam param="is_simulation">false</rosparam>
+      </node>
+      <node name="template_fsm" pkg="template_gnc" type="template_fsm_node" output ="screen"/>
+      <node pkg="rosbag" type="record" name="recorder" args="record -a -O $(find drone_navigation)/log/log.bag"/>
 
 </launch>
 
