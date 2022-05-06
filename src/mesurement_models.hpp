@@ -14,7 +14,7 @@ class MesurementModels{
     static const int NX = 19; // number of states
 
     static const int NZBARO = 1;
-    static const int NZGPS = 3;
+    static const int NZGPS = 2;
     static const int NZMAG = 3;
     static const int NZACC = 3;
     static const int NZGYRO = 3;
@@ -53,11 +53,9 @@ class MesurementModels{
     template<typename scalar_t>
     using sensor_data_optitrack_t = Eigen::Matrix<scalar_t, NZOPTITRACK, 1>;
 
-
-
     template<typename T>
-    void mesurementModelBaro(const state_t<T> &x, sensor_data_baro_t<T> &z,double baro_bias) {
-        z(0) = x(2) - baro_bias;
+    void mesurementModelBaro(const state_t<T> &x, sensor_data_baro_t<T> &z) {
+        z(0) = x(2) ;
     }
 
     template<typename T>
@@ -99,7 +97,7 @@ class MesurementModels{
 
     template<typename T>
     void mesurementModelGPS(const state_t<T> &x, sensor_data_gps_t<T> &z) {
-        z = x.segment(0,3);
+        z = x.segment(0,2);
     }
 
     template<typename T>

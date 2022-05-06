@@ -25,40 +25,25 @@
 #include "rocket_utils/Sensor.h"
 #include "rocket_utils/StateCovariance.h"
 
-
 #include "geometry_msgs/PoseStamped.h"
-#include "geometry_msgs/Vector3.h"
 
 #include "sensor_msgs/Imu.h"
 #include "sensor_msgs/MagneticField.h"
 #include "sensor_msgs/NavSatFix.h"
 #include "sensor_msgs/FluidPressure.h"
 
-
-#include <time.h>
-#include <sstream>
-#include <string>
-
 #include <iostream>
-#include <fstream>
 #include <chrono>
-#include <iomanip>
 
-//#include "Eigen/Core"
-//#include "Eigen/Geometry"
-//#include <unsupported/Eigen/EulerAngles>
 #include "eigen3/Eigen/Core"
 #include "eigen3/Eigen/Geometry"
 #include <eigen3/unsupported/Eigen/EulerAngles>
-
 
 #include "rocket_model.hpp"
 #include "mesurement_models.hpp"
 #include "predict_models.hpp"
 
 
-
-#include <type_traits>
 
 #include <random>
 #include <autodiff/AutoDiffScalar.h>
@@ -70,15 +55,20 @@ class NavigationNode {
 	public:
         const float dt_ros = 0.05;
 
-        bool is_simulation; // 1=runs in simulation (SIL), 0=runs on drone with optitrack
-        const int use_gps = 0; // 0=use optitrack, 1=use px4 gps
-        const int predict_on_idle = 1;// 1:navigation runs on idle state, 0:navigation does not run on idle state
+        bool is_simulation; // 1=runs in simulation (SIL), 0=runs on drone
+        bool use_gps; // 0=use optitrack, 1=use px4 gps
+        bool predict_on_idle;// 1:navigation runs on idle state, 0:navigation does not run on idle state
+        bool use_magnetometer; // 0=do not use px4 magnetometer, 1=use px4 magnetometer
+        bool use_barometer; // 0=do not use px4 barometer, 1=use px4 barometer
+        bool use_torque; // 0=do not use torque from vehicle model, 1=use torque from vehicle model
 
-        static const int NX = 19; // number of states in the EKF
+
+
+    static const int NX = 19; // number of states in the EKF
 
         // observation model dimentions
 		static const int NZBARO = 1;
-        static const int NZGPS = 3;
+        static const int NZGPS = 2;
         static const int NZMAG = 3;
         static const int NZACC = 3;
         static const int NZGYRO = 3;
@@ -153,14 +143,13 @@ class NavigationNode {
         PredictionModels *predictionModels;
 
 
-        sensor_data_gps gps_data;
         sensor_data_baro z_baro;
         sensor_data_mag mag_data;
         sensor_data_mag raw_mag;
         sensor_data_gyro gyro_data;
         sensor_data_fsen fsen_data;
         sensor_data_optitrack optitrack_data;
-        sensor_data_optitrack optitrack_data0;
+        sensor_data_optitrack optitrack_data0; // initial position for optitrack
 
 
 
@@ -179,7 +168,6 @@ class NavigationNode {
 		// List of subscribers and publishers
 		ros::Publisher nav_pub;
         ros::Publisher cov_pub;
-
 
         ros::Subscriber fsm_sub;
 		ros::Subscriber control_sub;
@@ -225,99 +213,76 @@ class NavigationNode {
 		state X , Z_fakesensor;
 		ad_state ADx; // state used for autodiff
 
-		/// Fake GPS
-		// Last received fake GPS data
-		Eigen::Matrix<double, 3, 1> gps_pos;
-        Eigen::Matrix<double, 3, 1> gps_vel;
-
-    double gps_freq = 10; //fake gps prequency
-//
-//        double gps_noise_xy = .8;
-//        double gps_noise_z = .6;
-//		double gps_noise_xy_vel = .2;
-//		double gps_noise_z_vel = .2;
+    // Fake GPS params
+        double gps_freq = 10; //fake gps prequency
+        double gps_noise_xy = 0.0;
 
 
-//        double gps_noise_xy = .008;
-//        double gps_noise_z = .06;
-//        double gps_noise_xy_vel = .2;
-//        double gps_noise_z_vel = .2;
+    // px4 gps variables
+        double kx = 0;
+        double ky = 0;
+        double gps_latitude0 = 0;
+        double gps_longitude0 = 0;
+        double gps_latitude = 0;
+        double gps_longitude = 0;
 
-    double gps_noise_xy = .0;
-    double gps_noise_z = .0;
-    double gps_noise_xy_vel = .0;
-    double gps_noise_z_vel = .0;
-
-    // end fakegps
-
-    float dry_mass = 1;
-
-    double kx = 0;
-    double ky = 0;
-    double gps_latitude0 = 0;
-    double gps_longitude0 = 0;
-    double gps_alt0 = 0;
-    double gps_latitude = 0;
-    double gps_longitude = 0;
-    double gps_alt = 0;
-
-    Matrix<double,3,1> acc_bias;
-    Matrix<double,3,1> gyro_bias;
-    Matrix<double,3,1> mag_bias;
-    double baro_bias = 0.0;
-    double total_mass = 0.0;
-
-    Matrix<double,3,3> A_mag_calibration;
-    Matrix<double,3,1> b_mag_calibration;
-    Matrix<double,3,1> mag_vec_inertial;
-    Matrix<double,3,1> mag_vec_inertial_sum;
-    double mag_homing_counter = 0;
-
-
-
-
-
-
-    double pressure0 = 0.0; // pressure of barometer at the origin
-    double pressure = 0.0; // pressure of barometer at the origin
+    // px4 barometer variables
+        double pressure0 = 0.0; // pressure of barometer at the origin
+        double pressure = 0.0; // pressure of barometer at the origin
 
     //Inertia
-    Matrix<double, 3, 1> I_inv;
-    Matrix<double, 3, 1> I;
+        Matrix<double, 3, 1> I_inv;
+        Matrix<double, 3, 1> I;
+
+    //mass of vehicle
+        double total_mass = 1.0;
+        double dry_mass = 1.0;
 
     // Current torque from Actuator
-    Matrix<double, 3, 1> control_torque_body;
+        Matrix<double, 3, 1> control_torque_body;
 
     // Current acceleration and angular rate from IMU
-    Matrix<double, 3, 1> IMU_omega_b;
-    Matrix<double, 3, 1> IMU_acc;
+        Matrix<double, 3, 1> IMU_omega_b;
+        Matrix<double, 3, 1> IMU_acc;
+
+    // GPS x,y position
+        Eigen::Matrix<double, 2, 1> gps_pos;
 
 
     // calibration params
 
-    Matrix<double,3,1> sum_acc;
-    Matrix<double,3,1> sum_gyro;
+        Matrix<double,3,1> acc_bias;
+        Matrix<double,3,1> gyro_bias;
+        Matrix<double,3,1> mag_bias;
 
-    int imu_calibration_counter = 0;
-    int imu_calibration_counter_calibrated = 1000;
+        Matrix<double,3,3> A_mag_calibration;
+        Matrix<double,3,1> b_mag_calibration;
 
-    int pressure_homing_counter = 0;
-    double baro_pressure_sum = 0.0;
+        double gps_latitude_sum = 0.0;
+        double gps_longitude_sum = 0.0;
+        double baro_pressure_sum = 0.0;
+        Matrix<double,3,1> sum_acc;
+        Matrix<double,3,1> sum_gyro;
 
-    double gps_latitude_sum = 0.0;
-    double gps_longitude_sum = 0.0;
-    double gps_alt_sum = 0.0;
-    int gps_homing_counter = 0;
+        Matrix<double,3,1> mag_vec_inertial;
+        Matrix<double,3,1> mag_vec_inertial_sum;
 
-    int gps_started = 0; // autmatically set to 0 once gps fix arrives
-    int imu_calibrated = 0; // 1:imu calibrated, 0:imu not calibrated (imu=gyroscope and accelerometer)
+        int gps_homing_counter = 0;
+        int pressure_homing_counter = 0;
+        int mag_homing_counter = 0;
 
-    int optitrack_started = 0;
+        int imu_calibration_counter = 0;
+        int imu_calibration_counter_calibrated = 1000;
+
+        int gps_started = 0; // set to 1 once gps is ready
+        int optitrack_started = 0; // set to 1 once optitrack is ready
+        int imu_calibrated = 0; // 1:imu calibrated, 0:imu not calibrated (imu=gyroscope and accelerometer)
+
 
 public:
 		NavigationNode(ros::NodeHandle nh)
 		{
-            // Init derivatives
+            // Init autodiff derivatives
             ADx(X);
             int div_size = ADx.size();
             int derivative_idx = 0;
@@ -326,82 +291,114 @@ public:
                 derivative_idx++;
             }
 
+            /// EKF settings initiation
+            nh.param<bool>("/navigation/is_simulation", is_simulation, true);
+            nh.param<bool>("/navigation/use_gps", use_gps, true);
+            nh.param<bool>("/navigation/use_magnetometer", use_magnetometer, false);
+            nh.param<bool>("/navigation/use_barometer", use_barometer, false);
+            nh.param<bool>("/navigation/use_torque", use_torque, false);
 
+            nh.param<int>("/navigation/imu_calibration_number_of_samples", imu_calibration_counter_calibrated, 1000);
 
-            /// Initialize kalman parameters
-            // sensor covarience matrices
-            R_baro.setZero();
-            R_baro(0,0) = 0.0000001;
+            nh.param<int>("/navigation/imu_calibration_number_of_samples", imu_calibration_counter_calibrated, 1000);
 
-            R_gps.setIdentity();
-            R_gps = R_gps*0.008*0.008;
-            R_gps(2,2) = 0.06*0.06;
-            R_gps.block(3,3,3,3) =Eigen::Matrix<double, 3, 3>::Identity(3, 3) * 0.02*0.02;
-//            R_gps.setIdentity();
-//            R_gps = R_gps*0.8*0.8;
-//            R_gps(2,2) = 0.6*0.6;
-//            R_gps.setIdentity();
-//            R_gps = R_gps*20;
-//            R_gps(2,2) = 30;
+            // fake gps initiation
+            nh.param<double>("/navigation/fake_gps_freq", gps_freq, 10);
+            nh.param<double>("/navigation/fake_gps_variance_xy", gps_noise_xy, 10);
 
+            // sensor covariance initiation
+            R_baro.setIdentity();
+            nh.param<double>("/navigation/R_baro", R_baro(0), 0.0000001);
 
             R_mag.setIdentity();
-            R_mag = R_mag*0.001*0.001;
-
-            R_gyro.setIdentity();
-            R_gyro = R_gyro*0.01*0.01;
-
-
+            nh.param<double>("/navigation/R_mag_x", R_mag(0,0), 0.0000001);
+            nh.param<double>("/navigation/R_mag_y", R_mag(1,1), 0.0000001);
+            nh.param<double>("/navigation/R_mag_z", R_mag(2,2), 0.0000001);
 
             R_acc.setIdentity();
-
-            R_fsen.setIdentity();
-            R_fsen = R_fsen*10;
+            nh.param<double>("/navigation/R_acc_x", R_acc(0,0), 1);
+            nh.param<double>("/navigation/R_acc_y", R_acc(1,1), 1);
+            nh.param<double>("/navigation/R_acc_z", R_acc(2,2), 1);
 
             R_optitrack.setIdentity();
-            R_optitrack = R_optitrack*0.000000001;
+            nh.param<double>("/navigation/R_optitrack_x", R_optitrack(0,0), 0.000000001);
+            nh.param<double>("/navigation/R_optitrack_y", R_optitrack(1,1), 0.000000001);
+            nh.param<double>("/navigation/R_optitrack_z", R_optitrack(2,2), 0.000000001);
 
-            P.setZero(); // no error in the initial state
+            R_fsen.setIdentity();
+            nh.param<double>("/navigation/R_fsen_x", R_fsen(0,0), 10);
+            nh.param<double>("/navigation/R_fsen_y", R_fsen(1,1), 10);
+            nh.param<double>("/navigation/R_fsen_z", R_fsen(2,2), 10);
 
-            // process covariance matrix
+            R_gps.setIdentity();
+            nh.param<double>("/navigation/R_gps_x", R_gps(0,0), 0.000064);
+            nh.param<double>("/navigation/R_gps_y", R_gps(1,1), 0.000064);
+
+            R_gyro.setIdentity();
+            nh.param<double>("/navigation/R_gyro_x", R_gyro(0,0), 0.0001);
+            nh.param<double>("/navigation/R_gyro_y", R_gyro(1,1), 0.0001);
+            nh.param<double>("/navigation/R_gyro_z", R_gyro(2,2), 0.0001);
+
+            // process covariance
             Q.setIdentity();
-            Q.block(0,0,3,3) = Eigen::Matrix<double, 3, 3>::Identity(3, 3)*0.00001*dt_ros;
-            Q(2,2) = .5*dt_ros;
-            Q.block(3,3,3,3) = Eigen::Matrix<double, 3, 3>::Identity(3, 3)*0.0001*dt_ros;
-            Q(5,5) = .8*dt_ros;
+            nh.param<double>("/navigation/Q_pos_x", Q(0,0), 0.0000005);
+            nh.param<double>("/navigation/Q_pos_y", Q(1,1), 0.0000005);
+            nh.param<double>("/navigation/Q_pos_z", Q(2,2), 0.025);
 
-            Q(6,6) = 0.0001*dt_ros;
-            Q(7,7) = 0.0001*dt_ros;
-            Q(8,8) = 0.000001*dt_ros;
-            Q(9,9) = 0.000001*dt_ros;
+            nh.param<double>("/navigation/Q_vel_x", Q(3,3), 0.0000005);
+            nh.param<double>("/navigation/Q_vel_y", Q(4,4), 0.0000005);
+            nh.param<double>("/navigation/Q_vel_z", Q(5,5), 0.04);
 
-            Q.block(10,10,3,3) =  Eigen::Matrix<double, 3, 3>::Identity(3, 3)*0.01*0.01;
-            Q.block(13,13,6,6) =Eigen::Matrix<double, 6, 6>::Identity(6, 6) *0.1;
-            /// End init kalman parameters
+            nh.param<double>("/navigation/Q_wx", Q(6,6),  0.000005);
+            nh.param<double>("/navigation/Q_wy", Q(7,7), 0.00000005);
+            nh.param<double>("/navigation/Q_wz", Q(8,8), 0.00000005);
+            nh.param<double>("/navigation/Q_wq", Q(9,9),  0.000005);
 
-            z_baro.setZero();
+            nh.param<double>("/navigation/Q_om_x", Q(10,10), 0.000005);
+            nh.param<double>("/navigation/Q_om_y", Q(11,11), 0.000005);
+            nh.param<double>("/navigation/Q_om_z", Q(12,12), 0.000005);
 
-            nh.param<bool>("is_simulation", is_simulation, true);
+            nh.param<double>("/navigation/Q_dist_force_x", Q(13,13), 0.0001);
+            nh.param<double>("/navigation/Q_dist_force_y", Q(14,14), 0.0001);
+            nh.param<double>("/navigation/Q_dist_force_z", Q(15,15), 0.0001);
 
+            nh.param<double>("/navigation/Q_dist_torque_x", Q(16,16), 0.01);
+            nh.param<double>("/navigation/Q_dist_torque_x", Q(14,17), 0.01);
+            nh.param<double>("/navigation/Q_dist_torque_x", Q(18,18), 0.01);
+
+
+            // sensor bias
+            nh.param<double>("/navigation/gyro_bias_x", gyro_bias(0),0.0);
+            nh.param<double>("/navigation/gyro_bias_y", gyro_bias(1),0.0);
+            nh.param<double>("/navigation/gyro_bias_z", gyro_bias(2),0.0);
+
+            nh.param<double>("/navigation/acc_bias_x", acc_bias(0),0.0);
+            nh.param<double>("/navigation/acc_bias_y", acc_bias(1),0.0);
+            nh.param<double>("/navigation/acc_bias_z", acc_bias(2),0.0);
+
+            nh.param<double>("/navigation/mag_bias_x", mag_bias(0),0.0);
+            nh.param<double>("/navigation/mag_bias_y", mag_bias(1),0.0);
+            nh.param<double>("/navigation/mag_bias_z", mag_bias(2),0.0);
+
+            /// magnetometer calibration matrices
             A_mag_calibration.setIdentity();
-            A_mag_calibration << 1.4837,0.4140,-0.0779,0.4140 ,1.1569,0.0484,-0.0779 ,0.0484 ,0.6560;
-            b_mag_calibration.setZero();
-            b_mag_calibration << 0.1629,0.0614,-0.5392;
-            b_mag_calibration = b_mag_calibration*(10^(-5));
+            nh.param<double>("/navigation/A_mag_00", A_mag_calibration(0,0),1.0);
+            nh.param<double>("/navigation/A_mag_01", A_mag_calibration(0,1),0.0);
+            nh.param<double>("/navigation/A_mag_02", A_mag_calibration(0,2),0.0);
+            nh.param<double>("/navigation/A_mag_10", A_mag_calibration(1,0),0.0);
+            nh.param<double>("/navigation/A_mag_11", A_mag_calibration(1,1),1.0);
+            nh.param<double>("/navigation/A_mag_12", A_mag_calibration(1,2),0.0);
+            nh.param<double>("/navigation/A_mag_20", A_mag_calibration(2,0),0.0);
+            nh.param<double>("/navigation/A_mag_21", A_mag_calibration(2,1),0.0);
+            nh.param<double>("/navigation/A_mag_22", A_mag_calibration(2,2),1.0);
 
+            b_mag_calibration.setZero();
+            nh.param<double>("/navigation/b_mag_0", b_mag_calibration(0),0.0);
+            nh.param<double>("/navigation/b_mag_1", b_mag_calibration(1),0.0);
+            nh.param<double>("/navigation/b_mag_2", b_mag_calibration(2),0.0);
 
 			// Initialize publishers and subscribers
         	initTopics(nh);
-
-
-
-			// Initialize fsm
-            rocket_fsm.state_machine = "Calibration";
-
-
-            mag_vec_inertial<<0.0,0.0,0.0;
-
-            mag_vec_inertial_sum<<0.0,0.0,0.0;
 
 			// Initialize rocket class with useful parameters
 			rocket.init(nh);
@@ -411,9 +408,7 @@ public:
 			nh.getParam("/environment/rocket_roll", roll);
 			nh.getParam("/environment/rail_zenith", zenith);
 			nh.getParam("/environment/rail_azimuth", azimuth);
-
             nh.getParam("/rocket/dry_mass", dry_mass);
-
 
             roll *= DEG2RAD; zenith *= DEG2RAD; azimuth *= DEG2RAD;
 
@@ -424,32 +419,31 @@ public:
 
 			Eigen::Quaterniond q(init_angle);
 
-            acc_bias << 0,0,0;
-            gyro_bias << 0,0,0;
-            mag_bias << 0,0,0;
-            baro_bias = 0;
+            /// Init internal navigation variables
+            rocket_fsm.state_machine = "Calibration";
 
+            P.setZero(); // no error in the initial state
+            z_baro.setZero();
+
+            mag_vec_inertial<<0.0,0.0,0.0;
+            mag_vec_inertial_sum<<0.0,0.0,0.0;
             sum_acc << 0,0,0;
             sum_gyro << 0,0,0;
 
             rocket_sensor.IMU_acc.x = 0;
             rocket_sensor.IMU_acc.y = 0;
             rocket_sensor.IMU_acc.z = 0;
-
             rocket_sensor.IMU_gyro.x = 0;
             rocket_sensor.IMU_gyro.y = 0;
             rocket_sensor.IMU_gyro.z = 0;
-
             rocket_sensor.IMU_mag.x = 0;
             rocket_sensor.IMU_mag.y = 0;
             rocket_sensor.IMU_mag.z = 0;
-
             rocket_sensor.baro_height = 0;
 
             rocket_control.torque.x = 0;
             rocket_control.torque.y = 0;
             rocket_control.torque.z = 0;
-
             rocket_control.force.x = 0;
             rocket_control.force.y = 0;
             rocket_control.force.z = 0;
@@ -475,9 +469,13 @@ public:
 
                 px4_imu_sub = nh.subscribe("/mavros/imu/data_raw", 1, &NavigationNode::px4imuCallback, this);
 
-                px4_mag_sub = nh.subscribe("/mavros/imu/mag", 1, &NavigationNode::px4magCallback, this);
+                if(use_magnetometer==1){
+                    px4_mag_sub = nh.subscribe("/mavros/imu/mag", 1, &NavigationNode::px4magCallback, this);
+                }
 
-                px4_baro_sub = nh.subscribe("/mavros/imu/static_pressure", 1, &NavigationNode::px4baroCallback, this);
+                if(use_barometer==1){
+                    px4_baro_sub = nh.subscribe("/mavros/imu/static_pressure", 1, &NavigationNode::px4baroCallback, this);
+                }
 
                 if(use_gps==1){
                     px4_gps_sub = nh.subscribe("/mavros/global_position/raw/fix", 1, &NavigationNode::px4gpsCallback, this);
@@ -491,14 +489,14 @@ public:
 			// Create filtered rocket state publisher
 			nav_pub = nh.advertise<rocket_utils::State>("/kalman_rocket_state", 10);
 
-            // Create calibration status publisher
-            //cal_pub = nh.advertise<rocket_utils::SensorCalibration>("/calibration_status", 10);
-
 			// Subscribe to time_keeper for fsm and time
 			fsm_sub = nh.subscribe("/gnc_fsm_pub", 1, &NavigationNode::fsmCallback, this);
 
-			// Subscribe to control for kalman estimator
-			//control_sub = nh.subscribe("/control_measured", 1, &NavigationNode::controlCallback, this);
+
+            // Subscribe to control to get torque from vehicle model predictions
+            if(use_torque){
+                control_sub = nh.subscribe("/control_measured", 1, &NavigationNode::controlCallback, this);
+            }
 
 		}
 
@@ -550,7 +548,7 @@ public:
 
             if(rocket_fsm.state_machine.compare("Calibration") == 0)
             {
-                //homing_mag();
+                homing_mag();
             }
 
             if(imu_calibrated==1){
@@ -561,7 +559,7 @@ public:
                     if(predict_on_idle==1){
                         predict_step();
                         if(!mag_data.hasNaN()){
-                            //update_step_mag(mag_data);
+                            update_step_mag(mag_data);
                         }
                     }
                 }
@@ -570,7 +568,7 @@ public:
                 {
                     predict_step();
                     if(!mag_data.hasNaN()){
-                        //update_step_mag(mag_data);
+                        update_step_mag(mag_data);
                     }
                 }
             }
@@ -595,7 +593,6 @@ public:
                         predict_step();
                         if(!z_baro.hasNaN()){
                             update_step_baro(z_baro);
-
                         }
                     }
                 }
@@ -615,12 +612,12 @@ public:
         {
             gps_latitude = gps->latitude;
             gps_longitude = gps->longitude;
-            gps_alt = gps->altitude;
+            //gps_alt = gps->altitude;
 
             // get sensor covariance diagonal from PX4
             R_gps(0,0) = gps->position_covariance[0];
             R_gps(1,1) = gps->position_covariance[4];
-            R_gps(2,2) = gps->position_covariance[8];
+            //R_gps(2,2) = gps->position_covariance[8];
 
             if(rocket_fsm.state_machine.compare("Calibration") == 0||gps_started==0)
             {
@@ -629,9 +626,9 @@ public:
 
             double gps_x = (gps_latitude-gps_latitude0)*kx;
             double gps_y = (gps_longitude-gps_longitude0)*ky;
-            double gps_z = (gps_alt-gps_alt0);
+            //double gps_z = (gps_alt-gps_alt0); not used because barometer is way better
 
-            gps_pos << gps_x,gps_y,gps_z;
+            gps_pos << gps_x,gps_y;
 
             if((gps_started==1)&&(imu_calibrated==1)){
                 if(rocket_fsm.state_machine.compare("Idle") == 0)
@@ -710,30 +707,17 @@ public:
             double dT_gps = ros::Time::now().toSec() - last_predict_time_gps;
 			
 			if(dT_gps>=1/gps_freq){
-			            gps_pos << state->pose.position.x,state->pose.position.y,state->pose.position.z;
-                        gps_vel << state->twist.linear.x,state->twist.linear.y,state->twist.linear.z;
+			            gps_pos << state->pose.position.x,state->pose.position.y;
 
                         // construct a trivial random generator engine from a time-based seed:
                         unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
                         std::default_random_engine generator(seed);
-
                         std::normal_distribution<double> gps_xy_noise(0.0, gps_noise_xy);
-                        std::normal_distribution<double> gps_z_noise(0.0, gps_noise_z);
-
-
-                        std::normal_distribution<double> gps_xy_noise_vel(0.0, gps_noise_xy_vel);
-                        std::normal_distribution<double> gps_z_noise_vel(0.0, gps_noise_z_vel);
-
-
-                        gps_pos << gps_pos(0) + gps_xy_noise(generator),gps_pos(1) + gps_xy_noise(generator),gps_pos(2) + gps_z_noise(generator);
-                        gps_vel << gps_vel(0) + gps_xy_noise_vel(generator),gps_vel(1) + gps_xy_noise_vel(generator),gps_vel(2) + gps_z_noise_vel(generator);
-
-                        gps_data.segment(0,3) = gps_pos;
-                        //gps_data.segment(3,3) = gps_vel;
+                        gps_pos << gps_pos(0) + gps_xy_noise(generator),gps_pos(1) + gps_xy_noise(generator);
 
                         if(rocket_fsm.state_machine.compare("Coast") == 0||rocket_fsm.state_machine.compare("Launch") == 0||rocket_fsm.state_machine.compare("Rail") == 0){
                             predict_step();
-                            update_step_gps(gps_data);
+                            update_step_gps(gps_pos);
                         }
 
 			            last_predict_time_gps = ros::Time::now().toSec();
@@ -761,9 +745,7 @@ public:
                 imu_calibrated = 1;
             }
 
-            //std::cout << "bias acc:" << acc_bias << "\n\n";
-            //std::cout << "bias gyro:" << gyro_bias << "\n\n";
-            std::cout << "calibration counter:" << imu_calibration_counter << "\n\n";
+            std::cout << "calibrating IMU: steps: " << imu_calibration_counter << "/" << imu_calibration_counter_calibrated << "\n\n";
 
         }
 
@@ -801,14 +783,12 @@ public:
 
         gps_latitude_sum = gps_latitude_sum+gps_latitude;
         gps_longitude_sum = gps_longitude_sum+gps_longitude;
-        gps_alt_sum = gps_alt_sum+gps_alt;
+        //gps_alt_sum = gps_alt_sum+gps_alt;
         gps_homing_counter++;
 
         gps_latitude0 = gps_latitude_sum/gps_homing_counter;
         gps_longitude0 = gps_longitude_sum/gps_homing_counter;
-        gps_alt0 = gps_alt_sum/gps_homing_counter;
-
-        ///AAAAAA
+        //gps_alt0 = gps_alt_sum/gps_homing_counter;
 
         latlongtometercoeffs(gps_latitude0,kx,ky);
         gps_started = 1;
@@ -929,12 +909,12 @@ public:
             //propagate hdot autodiff scalar at current x
             ADx = X;
             ad_sensor_data_baro hdot;
-            mesurementModels->mesurementModelBaro(ADx, hdot,baro_bias);
+            mesurementModels->mesurementModelBaro(ADx, hdot);
 
 
             //compute h(x)
             sensor_data_baro h_x;
-            mesurementModels->mesurementModelBaro(X, h_x,baro_bias);
+            mesurementModels->mesurementModelBaro(X, h_x);
 
 
             // obtain the jacobian of h(x)
@@ -1096,8 +1076,6 @@ public:
 
                 }
             }
-
-
 
 
 			// Parse navigation state and publish it on the /nav_pub topic

@@ -6,6 +6,10 @@
       <rosparam file="$(find rocket_utils)/config/rocket_parameters.yaml" />
   </group>
 
+   <group ns="navigation">
+        <rosparam file="$(find drone_navigation)/config/ekf_parameters.yaml" />
+    </group>
+
   <group ns="actuator">
       <rosparam file="$(find rocket_utils)/config/actuator_parameters.yaml" />
   </group>
@@ -21,13 +25,12 @@
   <group ns="visualization">
     <rosparam file="$(find real_time_simulator)/config/visualization_parameters.yaml" />
   </group>
+
+
 ''
 
   <node name="pid_control" pkg="pid_control" type="pid_control_node" output ="screen"/>
-   <node name="rocket_navigation_ekf" pkg="drone_navigation" type="rocket_navigation_ekf" output ="screen">
-        <rosparam param="is_simulation">true</rosparam>
-   </node> <!--  <node name="template_navigation" pkg="template_navigation" type="template_navigation_node" output ="screen"/>-->
-<!--  <node name="template_guidance" pkg="template_gnc" type="template_guidance" output ="screen"/>-->
+  <node name="rocket_navigation_ekf" pkg="drone_navigation" type="rocket_navigation_ekf" output ="screen"/>
   <node name="template_fsm" pkg="template_fsm" type="template_fsm_node" output ="screen"/>
   <node name="av_interface" pkg="rocket_utils" type="av_interface.py" output ="screen"/>
 

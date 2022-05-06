@@ -8,7 +8,6 @@
 #include "eigen3/Eigen/Geometry"
 using namespace Eigen;
 
-
 class PredictionModels{
     public:
     static const int NX = 19; // number of states

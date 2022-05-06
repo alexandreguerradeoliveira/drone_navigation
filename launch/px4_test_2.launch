@@ -16,9 +16,11 @@
           <rosparam file="$(find drone_navigation)/config/rocket_parameters.yaml" />
       </group>
 
-      <node name="rocket_navigation_ekf" pkg="drone_navigation" type="rocket_navigation_ekf" output ="screen">
-           <rosparam param="is_simulation">false</rosparam>
-      </node>
+      <group ns="navigation">
+              <rosparam file="$(find drone_navigation)/config/ekf_parameters.yaml" />
+      </group>
+
+      <node name="rocket_navigation_ekf" pkg="drone_navigation" type="rocket_navigation_ekf" output ="screen" />
       <node name="template_fsm" pkg="template_fsm" type="template_fsm_node" output ="screen"/>
       <node pkg="rosbag" type="record" name="recorder" args="record -a -O $(find drone_navigation)/log/log.bag"/>
 
