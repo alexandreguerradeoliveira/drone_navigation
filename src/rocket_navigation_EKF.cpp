@@ -2,18 +2,15 @@
 * Node to estimate the rocket full state (position, velocity, attitude quaternion, angular rate and mass) 
 * from the sensor data and commanded thrust and torque of the rocket engine
 *
-* Inputs: 
-*   - Finite state machine from the rocket_fsm :	     /gnc_fsm_pub
-*   - Measured 3D force and torque from av_interface:	 /control_measured
-*   - Sensor data (IMU and barometer) from av_interface: /sensor_pub
 *
 * Parameters:
 *   - Rocket model: 		/config/rocket_parameters.yaml
 *   - Environment model: 	/config/environment_parameters.yaml
-#	- Kalman matrix: 		class NavigationNode
-*
+*   - EKF parameters:       /config/ekf_parameters.yaml
+
 * Outputs:
 *   - Complete estimated state : /kalman_rocket_state
+ *  - Disturbance forces and torque in inertial frame: /kalman_disturbance
 *
 */
 
@@ -26,11 +23,14 @@
 #include "rocket_utils/StateCovariance.h"
 
 #include "geometry_msgs/PoseStamped.h"
+#include "geometry_msgs/Wrench.h"
+
 
 #include "sensor_msgs/Imu.h"
 #include "sensor_msgs/MagneticField.h"
 #include "sensor_msgs/NavSatFix.h"
 #include "sensor_msgs/FluidPressure.h"
+
 
 #include <iostream>
 #include <chrono>
@@ -168,8 +168,10 @@ class NavigationNode {
 		// List of subscribers and publishers
 		ros::Publisher nav_pub;
         ros::Publisher cov_pub;
+        ros::Publisher dist_pub;
 
-        ros::Subscriber fsm_sub;
+
+    ros::Subscriber fsm_sub;
 		ros::Subscriber control_sub;
 		ros::Subscriber rocket_state_sub;
 		ros::Subscriber sensor_sub;
@@ -489,6 +491,8 @@ public:
 			// Create filtered rocket state publisher
 			nav_pub = nh.advertise<rocket_utils::State>("/kalman_rocket_state", 10);
 
+            dist_pub = nh.advertise<geometry_msgs::Wrench>("/kalman_disturbance", 10);
+
 			// Subscribe to time_keeper for fsm and time
 			fsm_sub = nh.subscribe("/gnc_fsm_pub", 1, &NavigationNode::fsmCallback, this);
 
@@ -617,7 +621,6 @@ public:
             // get sensor covariance diagonal from PX4
             R_gps(0,0) = gps->position_covariance[0];
             R_gps(1,1) = gps->position_covariance[4];
-            //R_gps(2,2) = gps->position_covariance[8];
 
             if(rocket_fsm.state_machine.compare("Calibration") == 0||gps_started==0)
             {
@@ -1114,8 +1117,19 @@ public:
                 rocket_state.sensor_calibration = imu_calibrated;
             }
 
-
 			nav_pub.publish(rocket_state);
+
+            geometry_msgs::Wrench disturbance;
+            disturbance.force.x = X(13);
+            disturbance.force.y = X(14);
+            disturbance.force.z = X(15);
+
+            disturbance.torque.x = X(16);
+            disturbance.torque.y = X(17);
+            disturbance.torque.z = X(18);
+
+            dist_pub.publish(disturbance);
+
 
             rocket_utils::StateCovariance state_covariance;
 
