@@ -8,9 +8,9 @@
 
 ## general settings for the EKF
 
-is_simulation: true # 1=runs in simulation (SIL), 0=runs on drone
+is_simulation: false # 1=runs in simulation (SIL), 0=runs on drone
 use_gps: true #!!only read if is_simulation=0!!:0=use optitrack, 1=use px4 gps
-use_magnetometer: false #!!only read if is_simulation=0!!:0=do not use px4 magnetometer, 1=use px4 magnetometer
+use_magnetometer: true #!!only read if is_simulation=0!!:0=do not use px4 magnetometer, 1=use px4 magnetometer
 use_barometer: true #!!only read if is_simulation=0!!:0=do not use px4 barometer, 1=use px4 barometer
 use_torque: false #0=do not use torque from vehicle model, 1=use torque from vehicle model
 predict_on_idle: true #!!only read if is_simulation=0!!:1:navigation runs on idle state, 0:navigation does not run on idle state
@@ -32,20 +32,22 @@ mag_bias_x: 0.0 # [T]
 mag_bias_y: 0.0 # [T]
 mag_bias_z: 0.0 # [T]
 
-# magnetometer calibration matrices: A and B such that: m_calibrated = A*(m_uncalibrated - b)
-A_mag_00: 1.4837
-A_mag_01: 0.4140
-A_mag_02: -0.0779
-A_mag_10: 0.4140
-A_mag_11: 1.1569
-A_mag_12: 0.0484
-A_mag_20: -0.0779
-A_mag_21: 0.0484
-A_mag_22: 0.6560
+mag_declination: 0 #[rad] #magnetic declination at launch
 
-b_mag_0: 0.000001629
-b_mag_1: 0.00000614
-b_mag_2: -0.000005392
+# magnetometer calibration matrices: A and B such that: m_calibrated = A*(m_uncalibrated - b)
+A_mag_00: 1.3425
+A_mag_01: 0.3672
+A_mag_02: -0.0384
+A_mag_10: 0.3672
+A_mag_11: 1.0343
+A_mag_12: 0.0327
+A_mag_20: -0.0384
+A_mag_21: 0.0327
+A_mag_22: 0.8007
+
+b_mag_0: 0.000003097
+b_mag_1: -0.000000303
+b_mag_2: -0.000003619
 
 ### covariance matrices
 
@@ -75,19 +77,19 @@ Q_dist_torque_z: 0.01  # disturbance torque z noise [N^2.m^2]
 ## measurement update covariances (R) / sensor covarience matrix
 ## ONLY THE DIAGONAL
 
-R_gyro_x: 0.0001 #gyroscope covariance [rad^2.s^-2]
-R_gyro_y: 0.0001 #gyroscope covariance [rad^2.s^-2]
-R_gyro_z: 0.0001 #gyroscope covariance [rad^2.s^-2]
+R_gyro_x: 0.00002182 #gyroscope covariance [rad^2.s^-2]
+R_gyro_y: 0.00002528  #gyroscope covariance [rad^2.s^-2]
+R_gyro_z: 0.00000384 #gyroscope covariance [rad^2.s^-2]
 
-R_acc_x: 0.0000001 #accelerometer covariance [m^2.s^-4]
-R_acc_y: 0.0000001 #accelerometer covariance [m^2.s^-4]
-R_acc_z: 0.0000001 #accelerometer covariance [m^2.s^-4]
+R_acc_x: 0.0053 #accelerometer covariance [m^2.s^-4]
+R_acc_y: 0.0072 #accelerometer covariance [m^2.s^-4]
+R_acc_z: 0.0052 #accelerometer covariance [m^2.s^-4]
 
-R_mag_x: 0.0000001 #magnetometer covariance [T^2]
-R_mag_y: 0.0000001 #magnetometer covariance [T^2]
-R_mag_z: 0.0000001 #magnetometer covariance [T^2]
+R_mag_x: 0.000000000000131 #magnetometer covariance [T^2]
+R_mag_y: 0.000000000000178 #magnetometer covariance [T^2]
+R_mag_z: 0.000000000001149 #magnetometer covariance [T^2]
 
-R_baro: 0.0000001 #barometer covariance [m^2]
+R_baro: 0.0579 #barometer covariance [m^2]
 
 R_gps_x: 0.000064 #gps covariance [m^2]
 R_gps_y: 0.000064 #gps covariance [m^2]

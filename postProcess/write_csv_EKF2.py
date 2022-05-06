@@ -5,13 +5,9 @@ import rospy
 import rospkg
 import csv
 
-from real_time_simulator.msg import FSM
-from real_time_simulator.msg import State
-from real_time_simulator.msg import Control
-from real_time_simulator.msg import Sensor
-from real_time_simulator.msg import Trajectory
-from real_time_simulator.msg import Waypoint
-from real_time_simulator.msg import StateCovariance
+from rocket_utils.msg import FSM
+from rocket_utils.msg import State
+from rocket_utils.msg import StateCovariance
 
 
 import numpy as np
@@ -72,13 +68,11 @@ for topic, msg, t in bag.read_messages(topics=['/rocket_state']):
     new_speed = msg.twist.linear
     new_attitude = msg.pose.orientation    
     new_omega = msg.twist.angular
-    new_mass = msg.propeller_mass
 
     position = np.append(position, [[new_pos.x, new_pos.y, new_pos.z]], axis = 0)
     speed = np.append(speed, [[new_speed.x, new_speed.y, new_speed.z]], axis = 0)
     attitude = np.append(attitude, [[ new_attitude.x, new_attitude.y, new_attitude.z, new_attitude.w]], axis = 0)
     omega = np.append(omega, [[new_omega.x, new_omega.y, new_omega.z]], axis = 0)
-    prop_mass = np.append(prop_mass, [[new_mass]])
     time_state = np.append(time_state, [[t.to_sec()]])
 
 for topic, msg, t in bag.read_messages(topics=['/state_covariance']):
@@ -95,13 +89,11 @@ for topic, msg, t in bag.read_messages(topics=['/kalman_rocket_state']):
     new_speed = msg.twist.linear
     new_attitude = msg.pose.orientation    
     new_omega = msg.twist.angular
-    new_mass = msg.propeller_mass
-        
+
     position_est = np.append(position_est, [[new_pos.x, new_pos.y, new_pos.z]], axis = 0)
     speed_est = np.append(speed_est, [[new_speed.x, new_speed.y, new_speed.z]], axis = 0)
     attitude_est = np.append(attitude_est, [[ new_attitude.x, new_attitude.y, new_attitude.z, new_attitude.w]], axis = 0)
     omega_est = np.append(omega_est, [[new_omega.x, new_omega.y, new_omega.z]], axis = 0)
-    prop_mass_est = np.append(prop_mass_est, [[new_mass]])
     time_state_est = np.append(time_state_est, [[t.to_sec()]])
 
 for topic, msg, t in bag.read_messages(topics=['/control_pub']):
@@ -157,24 +149,24 @@ time_actuation = time_actuation - time_init
 
 # export state to csv
 with open('state_data.csv','w',newline='') as csvfile:
-    fieldnames = ['time_state','pos_x','pos_y','pos_z','vel_x','vel_y','vel_z','qx','qy','qz','qw','omega_x','omega_y','omega_z','mass']
+    fieldnames = ['time_state','pos_x','pos_y','pos_z','vel_x','vel_y','vel_z','qx','qy','qz','qw','omega_x','omega_y','omega_z']
     thewriter = csv.DictWriter(csvfile,fieldnames=fieldnames)
     #thewriter.writeheader()
 
     state_index = 0
     for time_state_index in time_state:
-        thewriter.writerow({'time_state':time_state[state_index],'pos_x':position[state_index,0],'pos_y':position[state_index,1],'pos_z':position[state_index,2],'vel_x':speed[state_index,0],'vel_y':speed[state_index,1],'vel_z':speed[state_index,2],'qx':attitude[state_index,0],'qy':attitude[state_index,1],'qz':attitude[state_index,2],'qw':attitude[state_index,3],'omega_x':omega[state_index,0],'omega_y':omega[state_index,1],'omega_z':omega[state_index,2],'mass':prop_mass[state_index]})
+        thewriter.writerow({'time_state':time_state[state_index],'pos_x':position[state_index,0],'pos_y':position[state_index,1],'pos_z':position[state_index,2],'vel_x':speed[state_index,0],'vel_y':speed[state_index,1],'vel_z':speed[state_index,2],'qx':attitude[state_index,0],'qy':attitude[state_index,1],'qz':attitude[state_index,2],'qw':attitude[state_index,3],'omega_x':omega[state_index,0],'omega_y':omega[state_index,1],'omega_z':omega[state_index,2]})
         state_index +=1
 
 # export kalman state to csv
 with open('kalman_state_data.csv','w',newline='') as csvfile:
-    fieldnames = ['time_state','pos_x','pos_y','pos_z','vel_x','vel_y','vel_z','qx','qy','qz','qw','omega_x','omega_y','omega_z','mass']
+    fieldnames = ['time_state','pos_x','pos_y','pos_z','vel_x','vel_y','vel_z','qx','qy','qz','qw','omega_x','omega_y','omega_z']
     thewriter = csv.DictWriter(csvfile,fieldnames=fieldnames)
     #thewriter.writeheader()
 
     state_index = 0
     for time_state_index in time_state_est:
-        thewriter.writerow({'time_state':time_state_est[state_index],'pos_x':position_est[state_index,0],'pos_y':position_est[state_index,1],'pos_z':position_est[state_index,2],'vel_x':speed_est[state_index,0],'vel_y':speed_est[state_index,1],'vel_z':speed_est[state_index,2],'qx':attitude_est[state_index,0],'qy':attitude_est[state_index,1],'qz':attitude_est[state_index,2],'qw':attitude_est[state_index,3],'omega_x':omega_est[state_index,0],'omega_y':omega_est[state_index,1],'omega_z':omega_est[state_index,2],'mass':prop_mass_est[state_index]})
+        thewriter.writerow({'time_state':time_state_est[state_index],'pos_x':position_est[state_index,0],'pos_y':position_est[state_index,1],'pos_z':position_est[state_index,2],'vel_x':speed_est[state_index,0],'vel_y':speed_est[state_index,1],'vel_z':speed_est[state_index,2],'qx':attitude_est[state_index,0],'qy':attitude_est[state_index,1],'qz':attitude_est[state_index,2],'qw':attitude_est[state_index,3],'omega_x':omega_est[state_index,0],'omega_y':omega_est[state_index,1],'omega_z':omega_est[state_index,2]})
         state_index +=1
 
 # export kalman covarience to csv

@@ -268,6 +268,7 @@ class NavigationNode {
 
         Matrix<double,3,1> mag_vec_inertial;
         Matrix<double,3,1> mag_vec_inertial_sum;
+        double mag_declination = 0.0;
 
         int gps_homing_counter = 0;
         int pressure_homing_counter = 0;
@@ -299,10 +300,12 @@ public:
             nh.param<bool>("/navigation/use_magnetometer", use_magnetometer, false);
             nh.param<bool>("/navigation/use_barometer", use_barometer, false);
             nh.param<bool>("/navigation/use_torque", use_torque, false);
+            nh.param<bool>("/navigation/predict_on_idle", predict_on_idle, true);
+
 
             nh.param<int>("/navigation/imu_calibration_number_of_samples", imu_calibration_counter_calibrated, 1000);
 
-            nh.param<int>("/navigation/imu_calibration_number_of_samples", imu_calibration_counter_calibrated, 1000);
+            nh.param<double>("/navigation/mag_declination", mag_declination, 0.0);
 
             // fake gps initiation
             nh.param<double>("/navigation/fake_gps_freq", gps_freq, 10);
@@ -471,15 +474,15 @@ public:
 
                 px4_imu_sub = nh.subscribe("/mavros/imu/data_raw", 1, &NavigationNode::px4imuCallback, this);
 
-                if(use_magnetometer==1){
+                if(use_magnetometer){
                     px4_mag_sub = nh.subscribe("/mavros/imu/mag", 1, &NavigationNode::px4magCallback, this);
                 }
 
-                if(use_barometer==1){
+                if(use_barometer){
                     px4_baro_sub = nh.subscribe("/mavros/imu/static_pressure", 1, &NavigationNode::px4baroCallback, this);
                 }
 
-                if(use_gps==1){
+                if(use_gps){
                     px4_gps_sub = nh.subscribe("/mavros/global_position/raw/fix", 1, &NavigationNode::px4gpsCallback, this);
                 }else{
                     optitrack_sub = nh.subscribe("/optitrack_client/Drone/optitrack_pose", 1, &NavigationNode::optitrackCallback, this);
@@ -532,7 +535,7 @@ public:
 
             if(rocket_fsm.state_machine.compare("Idle") == 0)
             {
-                if(predict_on_idle==1){
+                if(predict_on_idle){
                     predict_step();
                 }
             }
@@ -558,12 +561,11 @@ public:
             if(imu_calibrated==1){
                 if(rocket_fsm.state_machine.compare("Idle") == 0)
                 {
-                    //std::cout << raw_mag.transpose() << std::endl;
-
-                    if(predict_on_idle==1){
+                    if(predict_on_idle){
                         predict_step();
                         if(!mag_data.hasNaN()){
                             update_step_mag(mag_data);
+                            //std::cout << raw_mag.transpose() << std::endl;
                         }
                     }
                 }
@@ -593,7 +595,7 @@ public:
             if(imu_calibrated==1){
                 if(rocket_fsm.state_machine.compare("Idle") == 0)
                 {
-                    if(predict_on_idle==1){
+                    if(predict_on_idle){
                         predict_step();
                         if(!z_baro.hasNaN()){
                             update_step_baro(z_baro);
@@ -636,11 +638,10 @@ public:
             if((gps_started==1)&&(imu_calibrated==1)){
                 if(rocket_fsm.state_machine.compare("Idle") == 0)
                 {
-                    if(predict_on_idle==1){
+                    if(predict_on_idle){
                         predict_step();
                         if(!gps_pos.hasNaN()){
                             update_step_gps(gps_pos);
-
                         }
                     }
                 }
@@ -688,7 +689,7 @@ public:
 
             if(rocket_fsm.state_machine.compare("Idle") == 0)
             {
-                if(predict_on_idle==1){
+                if(predict_on_idle){
                     predict_step();
                     update_step_optitrack(optitrack_data-optitrack_data0);
                 }
@@ -771,11 +772,13 @@ public:
 //            double roll = atan2(rocket_sensor.IMU_acc.y,rocket_sensor.IMU_acc.z);
 //            double mag_g = sqrt((rocket_sensor.IMU_acc.x)*(rocket_sensor.IMU_acc.x)+(rocket_sensor.IMU_acc.y)*(rocket_sensor.IMU_acc.y)+(rocket_sensor.IMU_acc.z)*(rocket_sensor.IMU_acc.z));
 //            double pitch = asin(rocket_sensor.IMU_acc.x/mag_g);
+
             double yaw = atan2(mag_data(1),mag_data(0));
 
-            typedef Eigen::EulerSystem<-Eigen::EULER_Z, Eigen::EULER_Y, Eigen::EULER_X> mag_system;
-            typedef Eigen::EulerAngles<double, mag_system> mag_angle_type;
-            mag_angle_type init_angle(yaw, 0, 0);
+        typedef Eigen::EulerSystem<-Eigen::EULER_Z, Eigen::EULER_Y, Eigen::EULER_Z> Rail_system;
+        typedef Eigen::EulerAngles<double, Rail_system> mag_angle_type;
+
+            mag_angle_type init_angle(0, 0, -yaw+mag_declination);
 
             Eigen::Quaterniond q(init_angle);
             X.segment(6,4) = q.coeffs();
@@ -888,7 +891,6 @@ public:
 
 		void predict_step()
 		{
-
 //            // //Attitude diplay on terminal
 //            Eigen::Quaternion<double> attitude(X(9), X(6), X(7), X(8));
 //            Matrix<double,3,3> R = attitude.toRotationMatrix();
@@ -1065,7 +1067,7 @@ public:
             if(imu_calibrated==1){
                 if(rocket_fsm.state_machine.compare("Idle") == 0)
                 {
-                    if(predict_on_idle==1){
+                    if(predict_on_idle){
                         predict_step();
                     }
                 }
