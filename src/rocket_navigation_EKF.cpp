@@ -891,6 +891,7 @@ public:
 
 		void predict_step()
 		{
+
 //            // //Attitude diplay on terminal
 //            Eigen::Quaternion<double> attitude(X(9), X(6), X(7), X(8));
 //            Matrix<double,3,3> R = attitude.toRotationMatrix();
@@ -1068,13 +1069,13 @@ public:
                 if(rocket_fsm.state_machine.compare("Idle") == 0)
                 {
                     if(predict_on_idle){
-                        predict_step();
+                        //predict_step();
                     }
                 }
 
                 if (rocket_fsm.state_machine.compare("Launch") == 0 || rocket_fsm.state_machine.compare("Rail") == 0||rocket_fsm.state_machine.compare("Coast") == 0)
                 {
-                    predict_step();
+                    //predict_step();
 
                     //update_step_fsen(Z_fakesensor.segment(3,3));
 
