@@ -178,7 +178,7 @@ class NavigationNode {
 
             R_mag.setIdentity() * 0.001 * 0.001;
 
-            R_barro(0, 0) = 0.1 * 0.1;
+            R_barro(0, 0) = 0.24* 0.24;
 
             R_gps.setIdentity() * 0.8 * 0.8;
             R_gps(3, 3) = 0.2 * 0.2;
@@ -192,7 +192,7 @@ class NavigationNode {
 			nav_pub = nh.advertise<rocket_utils::State>("kalman_rocket_state", 10);
 
             // Create state covarience publisher
-            cov_pub = nh.advertise<rocket_utils::StateCovariance>("state_covariance", 10);
+            cov_pub = nh.advertise<rocket_utils::StateCovariance>("process_cov", 10);
 
 			// Subscribe to time_keeper for fsm and time
 			fsm_sub = nh.subscribe("gnc_fsm_pub", 1, &NavigationNode::fsmCallback, this);
@@ -234,10 +234,11 @@ class NavigationNode {
 
 			Eigen::Matrix<double,3,1> IMU_mag;
 			IMU_mag << rocket_sensor.IMU_mag.x,rocket_sensor.IMU_mag.y,rocket_sensor.IMU_mag.z;
-			
-			update_step_barro(rocket_sensor.baro_height,X,delta_x);
+
+            predict_step();
+            update_step_barro(rocket_sensor.baro_height,X,delta_x);
 			update_step_mag(IMU_mag,X,delta_x);
-			
+
 		}
 
 		// Callback function to fake gps with sensor data !
@@ -310,8 +311,7 @@ class NavigationNode {
 			// Speed variation is acceleration
 			xdot.segment(3,3) =  rot_matrix*IMU_acc - Eigen::Vector3d::UnitZ()*g0;
 
-			// Quaternion variation is 0.5*w◦q
-			//xdot.segment(6, 4) =  0.5*(omega_quat*attitude).coeffs();
+			// Quaternion variation is 0.5*q◦omega if omega is in the the body frame
             xdot.segment(6, 4) =  0.5*(attitude*omega_quat).coeffs();
 
 
@@ -461,9 +461,9 @@ class NavigationNode {
 			RK4(dT); // integrate state and covariance
 			
 			last_predict_time = ros::Time::now().toSec();
-			
-			
-		}
+
+
+        }
 		
 		void update_step_mag(const Eigen::Matrix<double,3,1> IMU_mag,const state_sim x, state &delta_x)
 		{
@@ -563,11 +563,16 @@ class NavigationNode {
 	
 		void updateNavigation()
 		{
-			// ----------------- State machine -----------------
+
+
+
+            // ----------------- State machine -----------------
 			if (rocket_fsm.state_machine.compare("Idle") == 0)
 			{
 				// Do nothing
-			}
+                predict_step();
+
+            }
 
 			else if (rocket_fsm.state_machine.compare("Launch") == 0 || rocket_fsm.state_machine.compare("Rail") == 0)
 			{
@@ -600,6 +605,8 @@ class NavigationNode {
 			rocket_state.twist.angular.z = X(12);
 
 			rocket_state.propeller_mass = X(13);
+
+            rocket_state.sensor_calibration = 1;
 
 			nav_pub.publish(rocket_state);
 

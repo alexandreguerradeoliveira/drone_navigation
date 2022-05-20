@@ -18,6 +18,7 @@
 
 #include "rocket_utils/FSM.h"
 #include "rocket_utils/State.h"
+#include "rocket_utils/ControlMomentGyro.h"
 #include "rocket_utils/Control.h"
 #include "rocket_utils/Sensor.h"
 #include "rocket_utils/StateCovariance.h"
@@ -298,7 +299,7 @@ public:
             nh.param<bool>("/navigation/is_simulation", is_simulation, true);
             nh.param<bool>("/navigation/use_gps", use_gps, true);
             nh.param<bool>("/navigation/use_magnetometer", use_magnetometer, false);
-            nh.param<bool>("/navigation/use_barometer", use_barometer, false);
+            nh.param<bool>("/navigation/use_barometer", use_barometer, true);
             nh.param<bool>("/navigation/use_torque", use_torque, false);
             nh.param<bool>("/navigation/predict_on_idle", predict_on_idle, true);
 
@@ -430,8 +431,8 @@ public:
             P.setZero(); // no error in the initial state
             z_baro.setZero();
 
-            mag_vec_inertial<<0.0,0.0,0.0;
-            mag_vec_inertial_sum<<0.0,0.0,0.0;
+            mag_vec_inertial << 0.0,0.0,0.0;
+            mag_vec_inertial_sum << 0.0,0.0,0.0;
             sum_acc << 0,0,0;
             sum_gyro << 0,0,0;
 
@@ -494,15 +495,17 @@ public:
 			// Create filtered rocket state publisher
 			nav_pub = nh.advertise<rocket_utils::State>("/kalman_rocket_state", 10);
 
+            cov_pub = nh.advertise<rocket_utils::StateCovariance>("/process_cov", 10);
+
+
             dist_pub = nh.advertise<geometry_msgs::Wrench>("/kalman_disturbance", 10);
 
 			// Subscribe to time_keeper for fsm and time
 			fsm_sub = nh.subscribe("/gnc_fsm_pub", 1, &NavigationNode::fsmCallback, this);
 
-
             // Subscribe to control to get torque from vehicle model predictions
             if(use_torque){
-                control_sub = nh.subscribe("/control_measured", 1, &NavigationNode::controlCallback, this);
+                control_sub = nh.subscribe("/cmg_command_0", 1, &NavigationNode::controlCallback, this);
             }
 
 		}
@@ -520,8 +523,12 @@ public:
 		void controlCallback(const rocket_utils::Control::ConstPtr& control)
 		{
 			rocket_control.torque = control->torque;
-			rocket_control.force = control->force;
-		}
+            rocket_control.force = control->force;
+
+            //double outer_angle = control->outer_angle;
+            //double outer_angle = control->outer_angle;
+            
+        }
 
         void px4imuCallback(const sensor_msgs::Imu::ConstPtr& sensor)
         {
@@ -565,7 +572,6 @@ public:
                         predict_step();
                         if(!mag_data.hasNaN()){
                             update_step_mag(mag_data);
-                            //std::cout << raw_mag.transpose() << std::endl;
                         }
                     }
                 }
@@ -773,12 +779,21 @@ public:
 //            double mag_g = sqrt((rocket_sensor.IMU_acc.x)*(rocket_sensor.IMU_acc.x)+(rocket_sensor.IMU_acc.y)*(rocket_sensor.IMU_acc.y)+(rocket_sensor.IMU_acc.z)*(rocket_sensor.IMU_acc.z));
 //            double pitch = asin(rocket_sensor.IMU_acc.x/mag_g);
 
-            double yaw = atan2(mag_data(1),mag_data(0));
+            //double yaw = atan2(mag_data(1),mag_data(0));
 
-        typedef Eigen::EulerSystem<-Eigen::EULER_Z, Eigen::EULER_Y, Eigen::EULER_Z> Rail_system;
-        typedef Eigen::EulerAngles<double, Rail_system> mag_angle_type;
+            Matrix<double,3,1> IMU_acc_norm; IMU_acc_norm << rocket_sensor.IMU_acc.x, rocket_sensor.IMU_acc.y, rocket_sensor.IMU_acc.z;
+            IMU_acc_norm.normalize();
+            Matrix<double,3,1> IMU_mag_norm = raw_mag;
+            IMU_mag_norm.normalize();
 
-            mag_angle_type init_angle(0, 0, -yaw+mag_declination);
+            double yaw =-atan2(IMU_acc_norm[0],sqrt(IMU_acc_norm[1]*IMU_acc_norm[1]+IMU_acc_norm[2]*IMU_acc_norm[2]));
+            double pitch = atan2(IMU_acc_norm[1],sqrt(IMU_acc_norm[0]*IMU_acc_norm[0]+IMU_acc_norm[2]*IMU_acc_norm[2]));
+            double roll = atan2(-(IMU_mag_norm[1]*cos(pitch) - IMU_mag_norm[1]*sin(pitch)),(IMU_mag_norm[0]*cos(yaw) + IMU_mag_norm[1]*sin(pitch)*sin(yaw) + IMU_mag_norm[2]*cos(pitch)*sin(yaw))) +mag_declination;
+
+            typedef Eigen::EulerSystem<-Eigen::EULER_Z, Eigen::EULER_Y, Eigen::EULER_X> euler_system;
+            typedef Eigen::EulerAngles<double, euler_system> mag_angle_type;
+
+            mag_angle_type init_angle(yaw, pitch, roll );
 
             Eigen::Quaterniond q(init_angle);
             X.segment(6,4) = q.coeffs();
@@ -900,6 +915,7 @@ public:
 //            double beta = atan2(R(0,2),sqrt(R(0,0) * R(0,0) + R(0,1) * R(0,1)));
 //            double gamma = atan2(-R(0,1),R(0,0));
 //            std::cout << "alpha:" << alpha/DEG2RAD << " beta:" << beta/DEG2RAD << " gamma:" << gamma/DEG2RAD << "\n\n";
+//    //
 
 
             static double last_predict_time = ros::Time::now().toSec();

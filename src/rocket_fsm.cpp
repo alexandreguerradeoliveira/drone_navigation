@@ -26,7 +26,7 @@
 #include <sstream>
 #include <string>
 
-#include "rocket_utils/GetFSM.h"
+//#include "rocket_utils/GetFSM.h"
 #include "std_msgs/String.h"
 
 class FsmNode {
@@ -64,7 +64,7 @@ class FsmNode {
         	initTopics(nh);
 
 			// Initialize fsm
-			rocket_fsm.time_now = 0;
+			//rocket_fsm.time_now = 0;
 			rocket_fsm.state_machine = "Idle";
 
 			// Overwrite rocket mass to stay in launch mode at first iteration
@@ -79,7 +79,7 @@ class FsmNode {
 		void initTopics(ros::NodeHandle &nh) 
 		{
 			// Create timer service
-			timer_service = nh.advertiseService("getFSM_gnc", &FsmNode::sendFSM, this);
+			//timer_service = nh.advertiseService("getFSM_gnc", &FsmNode::sendFSM, this);
 
 			// Create timer publisher and associated thread (100Hz)
 			timer_pub = nh.advertise<rocket_utils::FSM>("gnc_fsm_pub", 10);
@@ -117,16 +117,16 @@ class FsmNode {
 		}
 
 		// Service function: send back fsm (time + state machine)
-		bool sendFSM(rocket_utils::GetFSM::Request &req, rocket_utils::GetFSM::Response &res)
-		{
-			// Update current time
-			if (rocket_fsm.state_machine.compare("Idle") != 0) rocket_fsm.time_now = ros::Time::now().toSec() - time_zero;
-
-			res.fsm.time_now = rocket_fsm.time_now;
-			res.fsm.state_machine = rocket_fsm.state_machine;
-			
-			return true;
-		}
+//		bool sendFSM(rocket_utils::GetFSM::Request &req, rocket_utils::GetFSM::Response &res)
+//		{
+//			// Update current time
+//			if (rocket_fsm.state_machine.compare("Idle") != 0) rocket_fsm.time_now = ros::Time::now().toSec() - time_zero;
+//
+	//		res.fsm.time_now = rocket_fsm.time_now;
+		//	res.fsm.state_machine = rocket_fsm.state_machine;
+		//
+		//	return true;
+		//}
 
 		void updateFSM()
 		{
@@ -144,7 +144,7 @@ class FsmNode {
 			else
 			{
 				// Update current time
-				rocket_fsm.time_now = ros::Time::now().toSec() - time_zero;
+				//rocket_fsm.time_now = ros::Time::now().toSec() - time_zero;
 				
 				if (rocket_fsm.state_machine.compare("Rail") == 0)
 				{

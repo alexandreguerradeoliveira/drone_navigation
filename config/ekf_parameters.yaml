@@ -7,10 +7,9 @@
 # ----------------------------------------------------
 
 ## general settings for the EKF
-
 is_simulation: false # 1=runs in simulation (SIL), 0=runs on drone
 use_gps: true #!!only read if is_simulation=0!!:0=use optitrack, 1=use px4 gps
-use_magnetometer: false #!!only read if is_simulation=0!!:0=do not use px4 magnetometer, 1=use px4 magnetometer
+use_magnetometer: true #!!only read if is_simulation=0!!:0=do not use px4 magnetometer, 1=use px4 magnetometer
 use_barometer: true #!!only read if is_simulation=0!!:0=do not use px4 barometer, 1=use px4 barometer
 use_torque: false #0=do not use torque from vehicle model, 1=use torque from vehicle model
 predict_on_idle: true #!!only read if is_simulation=0!!:1:navigation runs on idle state, 0:navigation does not run on idle state
@@ -90,8 +89,8 @@ R_mag_z: 0.000000000001149 #magnetometer covariance [T^2]
 
 R_baro: 0.0579 #barometer covariance [m^2]
 
-R_gps_x: 0.000064 #gps covariance [m^2]
-R_gps_y: 0.000064 #gps covariance [m^2]
+R_gps_x: 0.64 #gps covariance [m^2] # we get this information from the gps system when not in simulation
+R_gps_y: 0.64 #gps covariance [m^2] # we get this information from the gps system when not in simulation
 
 R_optitrack_x: 0.000000001 #optitrack covariance [m^2]
 R_optitrack_y: 0.000000001 #optitrack covariance [m^2]
@@ -103,7 +102,7 @@ R_fsen_z: 10 #fake sensor "covariance" [m^2.s^-2]
 
 ## fake gps parameters
 fake_gps_freq: 10
-fake_gps_variance_xy: 0.0
+fake_gps_variance_xy: 0.8
 
 
 

@@ -29,8 +29,8 @@
 #include "rocket_utils/Control.h"
 #include "geometry_msgs/Vector3.h"
 
-#include "rocket_utils/GetFSM.h"
-#include "rocket_utils/GetWaypoint.h"
+#include "rocket_utils/FSM.h"
+#include "rocket_utils/Waypoint.h"
 
 #include <time.h>
 #include <sstream>
@@ -42,8 +42,8 @@
 
 #include "rocket_model.hpp"
 
-#include "Eigen/Core"
-#include "Eigen/Geometry"
+#include "eigen3/Eigen/Core"
+#include "eigen3/Eigen/Geometry"
 
 class ControlNode {
   private:
@@ -63,7 +63,7 @@ class ControlNode {
       ros::Subscriber fsm_sub;
 
       ros::ServiceClient client_fsm;
-      rocket_utils::GetFSM srv_fsm;
+      //rocket_utils::GetFSM srv_fsm;
 
     public:
 
@@ -73,8 +73,8 @@ class ControlNode {
         initTopics(nh);
 
         // Initialize fsm
-        rocket_fsm.time_now = 0;
-        rocket_fsm.state_machine = "Idle";
+        //rocket_fsm.time_now = 0;
+        //rocket_fsm.state_machine = "Idle";
 
         // Initialize rocket class with useful parameters
         rocket.init(nh);
@@ -92,7 +92,7 @@ class ControlNode {
         fsm_sub = nh.subscribe("gnc_fsm_pub", 1, &ControlNode::fsm_Callback, this);
 
         // Setup Time_keeper client and srv variable for FSM and time synchronization
-        client_fsm = nh.serviceClient<rocket_utils::GetFSM>("getFSM_gnc");
+        //client_fsm = nh.serviceClient<rocket_utils::GetFSM>("getFSM_gnc");
 
       }
 
@@ -107,7 +107,7 @@ class ControlNode {
       void fsm_Callback(const rocket_utils::FSM::ConstPtr& fsm)
       {
         rocket_fsm.state_machine = fsm->state_machine;
-        rocket_fsm.time_now = fsm->time_now;
+        //rocket_fsm.time_now = fsm->time_now;
       }
 
       //rocket_utils::Control P_control()
@@ -173,11 +173,14 @@ class ControlNode {
         // Init default control to zero
         rocket_utils::Control control_law;
 
-        //Get current FSM and time
-        if(client_fsm.call(srv_fsm))
-        {
-          rocket_fsm = srv_fsm.response.fsm;
-        }
+          control_law = P_control();
+
+
+          //Get current FSM and time
+        //if(client_fsm.call(srv_fsm))
+        //{
+         // rocket_fsm = srv_fsm.response.fsm;
+       // }
       
         // ----------------- State machine -----------------
         if (rocket_fsm.state_machine.compare("Idle") == 0)
@@ -185,7 +188,8 @@ class ControlNode {
           // Do nothing
         }
 
-        else 
+
+          else
         {
           if (rocket_fsm.state_machine.compare("Rail") == 0)
           {

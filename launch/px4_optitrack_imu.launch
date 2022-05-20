@@ -1,0 +1,40 @@
+<launch>
+        <node pkg="mavros" type="mavros_node" name="mavros" clear_params="true" output="screen" respawn="false">
+                <param name="fcu_url" value="/dev/ttyS0:921600" />
+                <param name="gcs_url" value="" />
+                <param name="target_system_id" value="1" />
+                <param name="target_component_id" value="1" />
+                <param name="fcu_protocol" value="v2.0" />
+
+                <rosparam command="load" file="$(find mavros)/launch/px4_pluginlists.yaml" />
+                <rosparam command="load" file="$(find mavros)/launch/px4_config.yaml" />
+        </node>
+
+    <param name="gnc_package" type="str" value="drone_navigation" />
+
+      <group ns="rocket">
+          <rosparam file="$(find drone_navigation)/config/rocket_parameters.yaml" />
+      </group>
+
+      <group ns="navigation">
+              <rosparam file="$(find drone_navigation)/config/ekf_parameters.yaml" />
+              <param name="is_simulation" value="false" />
+              <param name="use_gps" value="false" />
+              <param name="use_barometer" value="false" />
+              <param name="use_magnetometer" value="false" />
+      </group>
+
+      <node name="rocket_navigation_ekf" pkg="drone_navigation" type="rocket_navigation_ekf" output ="screen" />
+      <node name="template_fsm" pkg="template_fsm" type="template_fsm_node" output ="screen"/>
+      <node pkg="rosbag" type="record" name="recorder" args="record -a -O $(find drone_navigation)/log/log.bag"/>
+
+      <node name="optitrack_client" pkg="optitrack_ekf" type="optitrack_client" output="screen">
+          <rosparam param="server">192.168.0.215</rosparam>
+          <rosparam param="trackers">Drone</rosparam>
+      </node>
+
+
+</launch>
+
+
+

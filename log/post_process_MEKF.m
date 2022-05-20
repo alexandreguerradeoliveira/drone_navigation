@@ -31,7 +31,19 @@ EKF_cov_msg = readMessages(EKF_cov_state,'DataFormat','struct');
 
 state_data(:,1) = sim_state.MessageList.Time-EKF_state.MessageList.Time(1);
 kalman_state_data(:,1) = EKF_state.MessageList.Time - EKF_state.MessageList.Time(1);
+%%
 
+for k = 1:size(EKF_msg,1)
+    kalman_state_data(k,2:7+4+3) = [EKF_msg{k}.Pose.Position.X,EKF_msg{k}.Pose.Position.Y,EKF_msg{k}.Pose.Position.Z,EKF_msg{k}.Twist.Linear.X,EKF_msg{k}.Twist.Linear.Y,EKF_msg{k}.Twist.Linear.Z,EKF_msg{k}.Pose.Orientation.X,EKF_msg{k}.Pose.Orientation.Y,EKF_msg{k}.Pose.Orientation.Z,EKF_msg{k}.Pose.Orientation.W,EKF_msg{1}.Twist.Angular.X,EKF_msg{1}.Twist.Angular.Y,EKF_msg{1}.Twist.Angular.Z];
+end
+
+for k = 1:size(sim_msg,1)
+    state_data(k,2:7+4+3) = [sim_msg{k}.Pose.Position.X,sim_msg{k}.Pose.Position.Y,sim_msg{k}.Pose.Position.Z,sim_msg{k}.Twist.Linear.X,sim_msg{k}.Twist.Linear.Y,sim_msg{k}.Twist.Linear.Z,sim_msg{k}.Pose.Orientation.X,sim_msg{k}.Pose.Orientation.Y,sim_msg{k}.Pose.Orientation.Z,sim_msg{k}.Pose.Orientation.W,sim_msg{1}.Twist.Angular.X,sim_msg{1}.Twist.Angular.Y,sim_msg{1}.Twist.Angular.Z];
+end
+
+for k = 1:size(EKF_cov_msg,1)
+    kalman_covariance_diagonal_data(k,:)= EKF_cov_msg{k}.Covariance; 
+end
 
 %% plot trajectory
 title("Simulation trajectory visualisation")
@@ -54,7 +66,7 @@ interp_state_vel_x = interp1(state_data(:,1),state_data(:,5),tt_kal);
 interp_state_vel_y = interp1(state_data(:,1),state_data(:,6),tt_kal);
 interp_state_vel_z = interp1(state_data(:,1),state_data(:,7),tt_kal);
 
-interp_state_mass = interp1(state_data(:,1),state_data(:,15),tt_kal);
+% interp_state_mass = interp1(state_data(:,1),state_data(:,15),tt_kal);
 
 % calculate errors
 err_x = kalman_state_data(:,2)-interp_state_x;
@@ -65,7 +77,7 @@ err_vel_x = kalman_state_data(:,5)-interp_state_vel_x;
 err_vel_y = kalman_state_data(:,6)-interp_state_vel_y;
 err_vel_z = kalman_state_data(:,7)-interp_state_vel_z;
 
-err_mass = kalman_state_data(:,15)-interp_state_mass;
+% err_mass = kalman_state_data(:,15)-interp_state_mass;
 
 
 %%  error Plot config
