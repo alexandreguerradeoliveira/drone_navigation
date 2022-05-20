@@ -71,6 +71,7 @@ Q_dist_force_z: 0.00001  # disturbance force z noise [N^2]
 Q_dist_torque_x: 0.00001  # disturbance torque x noise  [N^2.m^2]
 Q_dist_torque_y: 0.00001  # disturbance torque y noise  [N^2.m^2]
 Q_dist_torque_z: 0.00001  # disturbance torque z noise [N^2.m^2]
+Q_baro_gps_bias: 1 # bias between the gps/optitrack and the barometer altitude noise [m^2]
 
 ## measurement update covariances (R) / sensor covarience matrix
 ## ONLY THE DIAGONAL

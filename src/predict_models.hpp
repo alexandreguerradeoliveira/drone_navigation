@@ -10,7 +10,7 @@ using namespace Eigen;
 
 class PredictionModels{
     public:
-    static const int NX = 19; // number of states
+    static const int NX = 20; // number of states
 
     // Autodiff for state
     template<typename scalar_t>

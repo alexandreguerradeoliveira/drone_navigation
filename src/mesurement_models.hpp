@@ -11,7 +11,7 @@ using namespace Eigen;
 class MesurementModels{
     public:
 
-    static const int NX = 19; // number of states
+    static const int NX = 20; // number of states
 
     static const int NZBARO = 1;
     static const int NZGPS = 3;
@@ -55,7 +55,7 @@ class MesurementModels{
 
     template<typename T>
     void mesurementModelBaro(const state_t<T> &x, sensor_data_baro_t<T> &z) {
-        z(0) = x(2) ;
+        z(0) = x(2) +x(19);
     }
 
     template<typename T>

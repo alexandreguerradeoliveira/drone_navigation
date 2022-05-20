@@ -65,7 +65,7 @@ class NavigationNode {
 
 
 
-    static const int NX = 19; // number of states in the EKF
+    static const int NX = 20; // number of states in the EKF
 
         // observation model dimentions
 		static const int NZBARO = 1;
@@ -377,6 +377,9 @@ public:
             nh.param<double>("/navigation/Q_dist_torque_x", Q(16,16), 0.01);
             nh.param<double>("/navigation/Q_dist_torque_x", Q(14,17), 0.01);
             nh.param<double>("/navigation/Q_dist_torque_x", Q(18,18), 0.01);
+
+            nh.param<double>("/navigation/Q_baro_gps_bias", Q(19,19), 1);
+
 
 
             // sensor bias
@@ -1095,24 +1098,6 @@ public:
 
 		void updateNavigation()
 		{
-			// ----------------- State machine -----------------
-
-            if(imu_calibrated==1){
-                if(rocket_fsm.state_machine.compare("Idle") == 0)
-                {
-
-                }
-
-                if (rocket_fsm.state_machine.compare("Launch") == 0 || rocket_fsm.state_machine.compare("Rail") == 0||rocket_fsm.state_machine.compare("Coast") == 0)
-                {
-                    if(is_simulation){
-                        predict_step();
-                    }
-
-                }
-            }
-
-
 			// Parse navigation state and publish it on the /nav_pub topic
 			rocket_utils::State rocket_state;
 
