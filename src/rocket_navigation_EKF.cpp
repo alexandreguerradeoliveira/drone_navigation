@@ -69,7 +69,7 @@ class NavigationNode {
 
         // observation model dimentions
 		static const int NZBARO = 1;
-        static const int NZGPS = 2;
+        static const int NZGPS = 3;
         static const int NZMAG = 3;
         static const int NZACC = 3;
         static const int NZGYRO = 3;
@@ -226,8 +226,10 @@ class NavigationNode {
         double ky = 0;
         double gps_latitude0 = 0;
         double gps_longitude0 = 0;
+        double gps_alt0 = 0;
         double gps_latitude = 0;
         double gps_longitude = 0;
+        double gps_alt = 0;
 
     // px4 barometer variables
         double pressure0 = 0.0; // pressure of barometer at the origin
@@ -249,7 +251,7 @@ class NavigationNode {
         Matrix<double, 3, 1> IMU_acc;
 
     // GPS x,y position
-        Eigen::Matrix<double, 2, 1> gps_pos;
+        Eigen::Matrix<double, 3, 1> gps_pos;
 
 
     // calibration params
@@ -263,6 +265,8 @@ class NavigationNode {
 
         double gps_latitude_sum = 0.0;
         double gps_longitude_sum = 0.0;
+        double gps_alt_sum = 0.0;
+
         double baro_pressure_sum = 0.0;
         Matrix<double,3,1> sum_acc;
         Matrix<double,3,1> sum_gyro;
@@ -339,6 +343,8 @@ public:
             R_gps.setIdentity();
             nh.param<double>("/navigation/R_gps_x", R_gps(0,0), 0.000064);
             nh.param<double>("/navigation/R_gps_y", R_gps(1,1), 0.000064);
+            nh.param<double>("/navigation/R_gps_z", R_gps(2,2), 0.000064);
+
 
             R_gyro.setIdentity();
             nh.param<double>("/navigation/R_gyro_x", R_gyro(0,0), 0.0001);
@@ -495,9 +501,10 @@ public:
 			// Create filtered rocket state publisher
 			nav_pub = nh.advertise<rocket_utils::State>("/kalman_rocket_state", 10);
 
+            // Create process covariance matrix diagonal publisher
             cov_pub = nh.advertise<rocket_utils::StateCovariance>("/process_cov", 10);
 
-
+            // Create disturbance force and torque publisher
             dist_pub = nh.advertise<geometry_msgs::Wrench>("/kalman_disturbance", 10);
 
 			// Subscribe to time_keeper for fsm and time
@@ -515,7 +522,6 @@ public:
 		// Callback function to store last received fsm
 		void fsmCallback(const rocket_utils::FSM::ConstPtr& fsm)
 		{
-			//rocket_fsm.time_now = fsm->time_now;
 			rocket_fsm.state_machine = fsm->state_machine;
 		}
 
@@ -602,8 +608,8 @@ public:
                 if(rocket_fsm.state_machine.compare("Idle") == 0)
                 {
                     if(predict_on_idle){
-                        predict_step();
                         if(!z_baro.hasNaN()){
+                            predict_step();
                             update_step_baro(z_baro);
                         }
                     }
@@ -611,8 +617,10 @@ public:
 
                 if(rocket_fsm.state_machine.compare("Coast") == 0||rocket_fsm.state_machine.compare("Launch") == 0||rocket_fsm.state_machine.compare("Rail") == 0)
                 {
-                    predict_step();
-                    update_step_baro(z_baro);
+                    if(!z_baro.hasNaN()){
+                        predict_step();
+                        update_step_baro(z_baro);
+                    }
                 }
             }
 
@@ -624,11 +632,13 @@ public:
         {
             gps_latitude = gps->latitude;
             gps_longitude = gps->longitude;
-            //gps_alt = gps->altitude;
+            gps_alt = gps->altitude;
 
             // get sensor covariance diagonal from PX4
             R_gps(0,0) = gps->position_covariance[0];
             R_gps(1,1) = gps->position_covariance[4];
+            R_gps(2,2) = gps->position_covariance[8];
+
 
             if(rocket_fsm.state_machine.compare("Calibration") == 0||gps_started==0)
             {
@@ -637,16 +647,16 @@ public:
 
             double gps_x = (gps_latitude-gps_latitude0)*kx;
             double gps_y = (gps_longitude-gps_longitude0)*ky;
-            //double gps_z = (gps_alt-gps_alt0); not used because barometer is way better
+            double gps_z = (gps_alt-gps_alt0);
 
-            gps_pos << gps_x,gps_y;
+            gps_pos << gps_x,gps_y,gps_z;
 
             if((gps_started==1)&&(imu_calibrated==1)){
                 if(rocket_fsm.state_machine.compare("Idle") == 0)
                 {
                     if(predict_on_idle){
-                        predict_step();
                         if(!gps_pos.hasNaN()){
+                            predict_step();
                             update_step_gps(gps_pos);
                         }
                     }
@@ -655,8 +665,10 @@ public:
 
                 if(rocket_fsm.state_machine.compare("Coast") == 0||rocket_fsm.state_machine.compare("Launch") == 0||rocket_fsm.state_machine.compare("Rail") == 0)
                 {
-                    predict_step();
-                    update_step_gps(gps_pos);
+                    if(!gps_pos.hasNaN()){
+                        predict_step();
+                        update_step_gps(gps_pos);
+                    }
                 }
             }
 
@@ -696,15 +708,19 @@ public:
             if(rocket_fsm.state_machine.compare("Idle") == 0)
             {
                 if(predict_on_idle){
-                    predict_step();
-                    update_step_optitrack(optitrack_data-optitrack_data0);
+                    if(!optitrack_data.hasNaN()) {
+                        predict_step();
+                        update_step_optitrack(optitrack_data - optitrack_data0);
+                    }
                 }
             }
 
             if(rocket_fsm.state_machine.compare("Coast") == 0||rocket_fsm.state_machine.compare("Launch") == 0||rocket_fsm.state_machine.compare("Rail") == 0)
             {
-                predict_step();
-                update_step_optitrack(optitrack_data-optitrack_data0);
+                if(!optitrack_data.hasNaN()) {
+                    predict_step();
+                    update_step_optitrack(optitrack_data - optitrack_data0);
+                }
             }
         }
 		
@@ -717,13 +733,13 @@ public:
             double dT_gps = ros::Time::now().toSec() - last_predict_time_gps;
 			
 			if(dT_gps>=1/gps_freq){
-			            gps_pos << state->pose.position.x,state->pose.position.y;
+			            gps_pos << state->pose.position.x,state->pose.position.y,state->pose.position.z;
 
                         // construct a trivial random generator engine from a time-based seed:
                         unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
                         std::default_random_engine generator(seed);
                         std::normal_distribution<double> gps_xy_noise(0.0, gps_noise_xy);
-                        gps_pos << gps_pos(0) + gps_xy_noise(generator),gps_pos(1) + gps_xy_noise(generator);
+                        gps_pos << gps_pos(0) + gps_xy_noise(generator),gps_pos(1) + gps_xy_noise(generator),gps_pos(2) + gps_xy_noise(generator);
 
                         if(rocket_fsm.state_machine.compare("Coast") == 0||rocket_fsm.state_machine.compare("Launch") == 0||rocket_fsm.state_machine.compare("Rail") == 0){
                             predict_step();
@@ -804,12 +820,12 @@ public:
 
         gps_latitude_sum = gps_latitude_sum+gps_latitude;
         gps_longitude_sum = gps_longitude_sum+gps_longitude;
-        //gps_alt_sum = gps_alt_sum+gps_alt;
+        gps_alt_sum = gps_alt_sum+gps_alt;
         gps_homing_counter++;
 
         gps_latitude0 = gps_latitude_sum/gps_homing_counter;
         gps_longitude0 = gps_longitude_sum/gps_homing_counter;
-        //gps_alt0 = gps_alt_sum/gps_homing_counter;
+        gps_alt0 = gps_alt_sum/gps_homing_counter;
 
         latlongtometercoeffs(gps_latitude0,kx,ky);
         gps_started = 1;
@@ -1084,17 +1100,14 @@ public:
             if(imu_calibrated==1){
                 if(rocket_fsm.state_machine.compare("Idle") == 0)
                 {
-                    if(predict_on_idle){
-                        //predict_step();
-                    }
+
                 }
 
                 if (rocket_fsm.state_machine.compare("Launch") == 0 || rocket_fsm.state_machine.compare("Rail") == 0||rocket_fsm.state_machine.compare("Coast") == 0)
                 {
-                    //predict_step();
-
-                    //update_step_fsen(Z_fakesensor.segment(3,3));
-
+                    if(is_simulation){
+                        predict_step();
+                    }
 
                 }
             }

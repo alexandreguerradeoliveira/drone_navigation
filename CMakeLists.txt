@@ -227,30 +227,10 @@ catkin_install_python(PROGRAMS
 ## Add folders to be run by python nosetests
 # catkin_add_nosetests(test)
 
-#add_executable(rocket_fsm src/rocket_fsm.cpp)
-#target_link_libraries(rocket_fsm ${catkin_LIBRARIES})
-#add_dependencies(rocket_fsm ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-
-#
-add_executable(rocket_control src/rocket_control.cpp)
-target_link_libraries(rocket_control ${catkin_LIBRARIES})
-add_dependencies(rocket_control ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-
-#
-#add_executable(rocket_guidance src/rocket_guidance.cpp)
-#target_link_libraries(rocket_guidance ${catkin_LIBRARIES})
-#add_dependencies(rocket_guidance ${${PROJECT_NAME}_EXPORTED_TARGETS})
-
 add_executable(rocket_navigation_ekf src/rocket_navigation_EKF.cpp)
 target_link_libraries(rocket_navigation_ekf Eigen3::Eigen ${catkin_LIBRARIES})
 add_dependencies(rocket_navigation_ekf ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
-add_executable(rocket_navigation_ekf_fm src/rocket_navigation_EKF_forcemodel.cpp)
-target_link_libraries(rocket_navigation_ekf_fm Eigen3::Eigen ${catkin_LIBRARIES})
-add_dependencies(rocket_navigation_ekf_fm ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
-add_executable(rocket_navigation_mekf src/rocket_navigation_MEKF.cpp)
-target_link_libraries(rocket_navigation_mekf Eigen3::Eigen ${catkin_LIBRARIES})
-add_dependencies(rocket_navigation_mekf ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 

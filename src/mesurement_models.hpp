@@ -14,7 +14,7 @@ class MesurementModels{
     static const int NX = 19; // number of states
 
     static const int NZBARO = 1;
-    static const int NZGPS = 2;
+    static const int NZGPS = 3;
     static const int NZMAG = 3;
     static const int NZACC = 3;
     static const int NZGYRO = 3;
@@ -97,7 +97,7 @@ class MesurementModels{
 
     template<typename T>
     void mesurementModelGPS(const state_t<T> &x, sensor_data_gps_t<T> &z) {
-        z = x.segment(0,2);
+        z = x.segment(0,3);
     }
 
     template<typename T>

@@ -6,11 +6,6 @@
       <rosparam file="$(find rocket_utils)/config/rocket_parameters.yaml" />
   </group>
 
-   <group ns="navigation">
-        <rosparam file="$(find drone_navigation)/config/ekf_parameters.yaml" />
-        <param name="is_simulation" value="true" />
-    </group>
-
   <group ns="actuator">
       <rosparam file="$(find rocket_utils)/config/actuator_parameters.yaml" />
   </group>
@@ -28,7 +23,10 @@
   </group>
 
 
-''
+   <group ns="navigation">
+        <rosparam file="$(find drone_navigation)/config/ekf_parameters.yaml" />
+        <param name="is_simulation" value="true" />
+    </group>
 
   <node name="pid_control" pkg="pid_control" type="pid_control_node" output ="screen"/>
   <node name="rocket_navigation_ekf" pkg="drone_navigation" type="rocket_navigation_ekf" output ="screen"/>
