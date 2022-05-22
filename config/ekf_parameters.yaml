@@ -50,31 +50,23 @@ b_mag_2: -0.000003619
 
 ### covariance matrices
 
-## prediction / process covariance (Q) matrix
-## ONLY THE DIAGONAL
-Q_pos_x: 15 # pos x noise [m^2]
-Q_pos_y: 15 # pos y noise [m^2]
-Q_pos_z: 30 # pos z noise [m^2]
-Q_vel_x: 25 # vel x noise [m^2.s^-2]
-Q_vel_y: 25 # vel y noise [m^2.s^-2]
-Q_vel_z: 40 # vel z noise [m^2.s^-2]
-Q_wq: 0.000005 # qw noise
-Q_wx: 0.000005 # qx noise
-Q_wy: 0.00000005 # qy noise
-Q_wz: 0.00000005 # qz noise
-Q_om_x: 0.00002182 # omega x noise [rad^2.s^-2]
-Q_om_y: 0.00002528 # omega y noise [rad^2.s^-2]
-Q_om_z: 0.00000384 # omega z noise [rad^2.s^-2]
-Q_dist_force_x: 0.00001  # disturbance force x noise [N^2]
-Q_dist_force_y: 0.00001  # disturbance force y noise [N^2]
-Q_dist_force_z: 0.00001  # disturbance force z noise [N^2]
-Q_dist_torque_x: 0.00001  # disturbance torque x noise  [N^2.m^2]
-Q_dist_torque_y: 0.00001  # disturbance torque y noise  [N^2.m^2]
-Q_dist_torque_z: 0.00001  # disturbance torque z noise [N^2.m^2]
-Q_baro_gps_bias: 1 # bias between the gps/optitrack and the barometer altitude noise [m^2]
+##  Definition of Q (process covariance matrix)
+Q_gyro_x: 0.00002182
+Q_gyro_y: 0.00002528
+Q_gyro_z: 0.00000384
+Q_acc_x: 0.0092
+Q_acc_y: 0.0103
+Q_acc_z: 0.0013
+Q_dist_force_x: 0.00001
+Q_dist_force_y: 0.00001
+Q_dist_force_z: 0.00001
+Q_dist_torque_x: 0.00001
+Q_dist_torque_y: 0.00001
+Q_dist_torque_z: 0.00001
+Q_baro_bias: 1
 
 ## measurement update covariances (R) / sensor covarience matrix
-## ONLY THE DIAGONAL
+## ONLY THE DIAGONALS
 
 R_gyro_x: 0.00002182 #gyroscope covariance [rad^2.s^-2]
 R_gyro_y: 0.00002528  #gyroscope covariance [rad^2.s^-2]
@@ -88,11 +80,11 @@ R_mag_x: 0.000000000000131 #magnetometer covariance [T^2]
 R_mag_y: 0.000000000000178 #magnetometer covariance [T^2]
 R_mag_z: 0.000000000001149 #magnetometer covariance [T^2]
 
-R_baro: 0.4 #barometer covariance [m^2]
+R_baro: 0.04 #barometer covariance [m^2]
 
 R_gps_x: 0.01 #gps covariance [m^2] # we get this information from the gps system when not in simulation
 R_gps_y: 0.01 #gps covariance [m^2] # we get this information from the gps system when not in simulation
-R_gps_z: 0.01
+R_gps_z: 0.01 #gps covariance [m^2] # we get this information from the gps system when not in simulation
 
 R_optitrack_x: 0.000000001 #optitrack covariance [m^2]
 R_optitrack_y: 0.000000001 #optitrack covariance [m^2]
@@ -105,6 +97,3 @@ R_fsen_z: 10 #fake sensor "covariance" [m^2.s^-2]
 ## fake gps parameters
 fake_gps_freq: 10
 fake_gps_variance_xy: 0.01
-
-
-

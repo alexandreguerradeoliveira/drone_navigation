@@ -94,7 +94,7 @@ figure
 tiledlayout(4,3)
 
 %Z_confidance = 2.576; % 99% interval
-Z_confidance = 3;
+Z_confidance = 2;
 
 %% err_x
 nexttile
@@ -202,26 +202,26 @@ syms q0 q1 q2 q3
 f = jacobian([atan(2*(q0*q3+q1*q2)/(1-2*(q2^2 + q3^2)));asin(2*(q0*q2-q3*q1));atan((2*(q0*q1+q2*q3))/(1-2*(q1^2+q2^2)))],[q0 q1 q2 q3]);
 
 if calculate_cov_eul ==1
-    P_quat = zeros(4,4,size(kalman_quat_covariance_data(:,1),1));
-    P_eul = zeros(3,3,size(kalman_quat_covariance_data(:,1),1));
-    std_eul1 = zeros(1,size(kalman_quat_covariance_data(:,1),1));
-    std_eul2 = zeros(1,size(kalman_quat_covariance_data(:,1),1));
-    std_eul3 = zeros(1,size(kalman_quat_covariance_data(:,1),1));
+    P_quat = zeros(4,4,size(kalman_covariance_diagonal_data(:,1),1));
+    P_eul = zeros(3,3,size(kalman_covariance_diagonal_data(:,1),1));
+    std_eul1 = zeros(1,size(kalman_covariance_diagonal_data(:,1),1));
+    std_eul2 = zeros(1,size(kalman_covariance_diagonal_data(:,1),1));
+    std_eul3 = zeros(1,size(kalman_covariance_diagonal_data(:,1),1));
 
     
-    for k = 1:size(kalman_quat_covariance_data(:,1),1)
+    for k = 1:size(kalman_covariance_diagonal_data(:,1),1)
         %P_quat(:,:,k) = [kalman_quat_covariance_data(k,17),kalman_quat_covariance_data(k,14),kalman_quat_covariance_data(k,15),kalman_quat_covariance_data(k,16);...
         %                 kalman_quat_covariance_data(k,5),kalman_quat_covariance_data(k,2),kalman_quat_covariance_data(k,3),kalman_quat_covariance_data(k,4);...
         %                 kalman_quat_covariance_data(k,9),kalman_quat_covariance_data(k,6),kalman_quat_covariance_data(k,7),kalman_quat_covariance_data(k,8);...
         %                 kalman_quat_covariance_data(k,13),kalman_quat_covariance_data(k,10),kalman_quat_covariance_data(k,11),kalman_quat_covariance_data(k,12)];
         P_quat(:,:,k) = diag([kalman_covariance_diagonal_data(k,11),kalman_covariance_diagonal_data(k,8),kalman_covariance_diagonal_data(k,9),kalman_covariance_diagonal_data(k,10)]);
-        %P_quat(:,:,k) = (P_quat(:,:,k) + P_quat(:,:,k)')/2;
+        P_quat(:,:,k) = (P_quat(:,:,k) + P_quat(:,:,k)')/2;
         Jac = subs(f,[q0 q1 q2 q3],[kalman_state_data(k,11),kalman_state_data(k,8),kalman_state_data(k,9),kalman_state_data(k,10)]);
         P_eul(:,:,k) = double(Jac*P_quat(:,:,k)*(Jac'));
    
-        std_eul1(k) = sqrt(P_eul(1,1,k));
-        std_eul2(k) = sqrt(P_eul(2,2,k));
-        std_eul3(k) = sqrt(P_eul(3,3,k));
+        std_eul1(k) = sqrt(abs(P_eul(1,1,k)));
+        std_eul2(k) = sqrt(abs(P_eul(2,2,k)));
+        std_eul3(k) = sqrt(abs(P_eul(3,3,k)));
     end 
 end
 

@@ -201,6 +201,12 @@ class NavigationNode {
 		state_matrix Q;
 		state_matrix P;
 
+    Matrix<double,3,1> var_gyro;
+    Matrix<double,3,1> var_acc;
+    Matrix<double,3,1> var_dist_force;
+    Matrix<double,3,1> var_dist_torque;
+    double var_baro_bias = 1;
+
         // mesurement model matrices
         Matrix<double,NZBARO,NX> H_baro; // computed using autodiff
         Matrix<double,NZGPS,NX> H_gps; // computed using autodiff
@@ -213,7 +219,7 @@ class NavigationNode {
 
 
     // Kalman state
-		state X , Z_fakesensor;
+		state X ;
 		ad_state ADx; // state used for autodiff
 
     // Fake GPS params
@@ -353,33 +359,23 @@ public:
 
             // process covariance
             Q.setIdentity();
-            nh.param<double>("/navigation/Q_pos_x", Q(0,0), 0.0000005);
-            nh.param<double>("/navigation/Q_pos_y", Q(1,1), 0.0000005);
-            nh.param<double>("/navigation/Q_pos_z", Q(2,2), 0.025);
+            nh.param<double>("/navigation/Q_gyro_x", var_gyro(0), 0.0000005);
+            nh.param<double>("/navigation/Q_gyro_y", var_gyro(1), 0.0000005);
+            nh.param<double>("/navigation/Q_gyro_z", var_gyro(2), 0.0000005);
 
-            nh.param<double>("/navigation/Q_vel_x", Q(3,3), 0.0000005);
-            nh.param<double>("/navigation/Q_vel_y", Q(4,4), 0.0000005);
-            nh.param<double>("/navigation/Q_vel_z", Q(5,5), 0.04);
+            nh.param<double>("/navigation/Q_acc_x", var_acc(0), 0.0000005);
+            nh.param<double>("/navigation/Q_acc_y", var_acc(1), 0.0000005);
+            nh.param<double>("/navigation/Q_acc_z", var_acc(2), 0.0000005);
 
-            nh.param<double>("/navigation/Q_wx", Q(6,6),  0.000005);
-            nh.param<double>("/navigation/Q_wy", Q(7,7), 0.00000005);
-            nh.param<double>("/navigation/Q_wz", Q(8,8), 0.00000005);
-            nh.param<double>("/navigation/Q_wq", Q(9,9),  0.000005);
+            nh.param<double>("/navigation/Q_dist_force_x", var_dist_force(0), 0.0000005);
+            nh.param<double>("/navigation/Q_dist_force_y", var_dist_force(1), 0.0000005);
+            nh.param<double>("/navigation/Q_dist_force_z", var_dist_force(2), 0.0000005);
 
-            nh.param<double>("/navigation/Q_om_x", Q(10,10), 0.000005);
-            nh.param<double>("/navigation/Q_om_y", Q(11,11), 0.000005);
-            nh.param<double>("/navigation/Q_om_z", Q(12,12), 0.000005);
+            nh.param<double>("/navigation/Q_dist_torque_x", var_dist_torque(0), 0.0000005);
+            nh.param<double>("/navigation/Q_dist_torque_y", var_dist_torque(1), 0.0000005);
+            nh.param<double>("/navigation/Q_dist_torque_z", var_dist_torque(2), 0.0000005);
 
-            nh.param<double>("/navigation/Q_dist_force_x", Q(13,13), 0.0001);
-            nh.param<double>("/navigation/Q_dist_force_y", Q(14,14), 0.0001);
-            nh.param<double>("/navigation/Q_dist_force_z", Q(15,15), 0.0001);
-
-            nh.param<double>("/navigation/Q_dist_torque_x", Q(16,16), 0.01);
-            nh.param<double>("/navigation/Q_dist_torque_x", Q(14,17), 0.01);
-            nh.param<double>("/navigation/Q_dist_torque_x", Q(18,18), 0.01);
-
-            nh.param<double>("/navigation/Q_baro_gps_bias", Q(19,19), 1);
-
+            nh.param<double>("/navigation/Q_baro_bias", var_baro_bias, 1);
 
 
             // sensor bias
@@ -871,13 +867,15 @@ public:
         ad_state Xdot;
         predictionModels->state_dynamics(ADx, Xdot,IMU_omega_b,IMU_acc,control_torque_body,total_mass,I, I_inv);
 
+
         // fetch the jacobian of f(x)
         for (int i = 0; i < Xdot.size(); i++) {
             F.row(i) = Xdot(i).derivatives();
         }
-        Pdot = F * P + P * F.transpose() + Q;
 
-        //std::cout << X <<  P << "\n"<< F<< "\n"<<  Pdot<< "\n\n";
+        predictionModels->process_noise_cov(x,Q,var_gyro,var_acc,var_dist_force,var_dist_torque,var_baro_bias);
+
+        Pdot = F * P + P * F.transpose() + Q;
 
     }
 
@@ -1098,6 +1096,7 @@ public:
 
 		void updateNavigation()
 		{
+
 			// Parse navigation state and publish it on the /nav_pub topic
 			rocket_utils::State rocket_state;
 
