@@ -29,6 +29,7 @@ kalman_state_data(:,1) = EKF_state.MessageList.Time - EKF_state.MessageList.Time
 
 for k = 1:size(EKF_msg,1)
     kalman_state_data(k,2:7+4+3) = [EKF_msg{k}.Pose.Position.X,EKF_msg{k}.Pose.Position.Y,EKF_msg{k}.Pose.Position.Z,EKF_msg{k}.Twist.Linear.X,EKF_msg{k}.Twist.Linear.Y,EKF_msg{k}.Twist.Linear.Z,EKF_msg{k}.Pose.Orientation.X,EKF_msg{k}.Pose.Orientation.Y,EKF_msg{k}.Pose.Orientation.Z,EKF_msg{k}.Pose.Orientation.W,EKF_msg{1}.Twist.Angular.X,EKF_msg{1}.Twist.Angular.Y,EKF_msg{1}.Twist.Angular.Z];
+    baro_bias(k) = EKF_msg{k}.BarometerBias;
 end
 
 for k = 1:size(sim_msg,1)
@@ -292,7 +293,11 @@ legend("\psi_{sim}","\theta_{sim}","\phi_{sim}","\psi_{kal}","\theta_{kal}","\ph
 
 %%
 
-
+figure
+plot(tt_kal,baro_bias)
+xlabel('time [s]')
+ylabel('barometer altitude bias [m]')
+yline(-0.1)
 
 
 

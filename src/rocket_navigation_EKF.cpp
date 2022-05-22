@@ -66,6 +66,7 @@ class NavigationNode {
 
 
     static const int NX = 20; // number of states in the EKF
+    static const int NW = 13; //number of sources of noise in process covariance
 
         // observation model dimentions
 		static const int NZBARO = 1;
@@ -82,6 +83,12 @@ class NavigationNode {
     	using state_t = Eigen::Matrix<scalar_t, NX, 1>;
     	using state = state_t<double>;
     	using ad_state = state_t<AutoDiffScalar<state>>;// Autodiff state variable
+
+        // Autodiff for noise
+        template<typename scalar_t>
+        using noise_t = Eigen::Matrix<scalar_t, NW, 1>;
+        using noise = noise_t<double>;
+        using ad_noise = noise_t<AutoDiffScalar<noise>>;// Autodiff state variable
 
         // Autodiff for barometer
     	template<typename scalar_t>
@@ -136,9 +143,12 @@ class NavigationNode {
         typedef Eigen::Matrix<double, NZFAKESENSOR, NZFAKESENSOR> sensor_matrix_fsen;
         typedef Eigen::Matrix<double, NZOPTITRACK, NZOPTITRACK> sensor_matrix_optitrack;
 
+        typedef Eigen::Matrix<double, NW, NW> covariance_input;
 
 
-	private:
+
+
+private:
 
         MesurementModels *mesurementModels;
         PredictionModels *predictionModels;
@@ -201,12 +211,6 @@ class NavigationNode {
 		state_matrix Q;
 		state_matrix P;
 
-    Matrix<double,3,1> var_gyro;
-    Matrix<double,3,1> var_acc;
-    Matrix<double,3,1> var_dist_force;
-    Matrix<double,3,1> var_dist_torque;
-    double var_baro_bias = 1;
-
         // mesurement model matrices
         Matrix<double,NZBARO,NX> H_baro; // computed using autodiff
         Matrix<double,NZGPS,NX> H_gps; // computed using autodiff
@@ -217,12 +221,22 @@ class NavigationNode {
         Matrix<double,NZOPTITRACK,NX> H_optitrack; // computed using autodiff
 
 
+        Matrix<double,NX,NW> G_noise; // computed using autodiff
+        Matrix<double,NW,NW> W_noise; // computed using autodiff
+
+
+
+
 
     // Kalman state
 		state X ;
 		ad_state ADx; // state used for autodiff
 
-    // Fake GPS params
+        //Kalman noise
+        noise W ;
+        ad_noise ADw; // state used for autodiff
+
+        // Fake GPS params
         double gps_freq = 10; //fake gps prequency
         double gps_noise_xy = 0.0;
 
@@ -305,6 +319,14 @@ public:
                 derivative_idx++;
             }
 
+            ADw(W);
+            int div_size_w = ADw.size();
+            int derivative_idw = 0;
+            for (int i = 0; i < ADw.size(); ++i) {
+                ADw(i).derivatives() = noise::Unit(div_size_w, derivative_idw);
+                derivative_idw++;
+            }
+
             /// EKF settings initiation
             nh.param<bool>("/navigation/is_simulation", is_simulation, true);
             nh.param<bool>("/navigation/use_gps", use_gps, true);
@@ -358,24 +380,24 @@ public:
             nh.param<double>("/navigation/R_gyro_z", R_gyro(2,2), 0.0001);
 
             // process covariance
-            Q.setIdentity();
-            nh.param<double>("/navigation/Q_gyro_x", var_gyro(0), 0.0000005);
-            nh.param<double>("/navigation/Q_gyro_y", var_gyro(1), 0.0000005);
-            nh.param<double>("/navigation/Q_gyro_z", var_gyro(2), 0.0000005);
+            W_noise.setIdentity();
+            nh.param<double>("/navigation/Q_gyro_x", W_noise(0,0), 0.0000005);
+            nh.param<double>("/navigation/Q_gyro_y", W_noise(1,1), 0.0000005);
+            nh.param<double>("/navigation/Q_gyro_z", W_noise(2,2), 0.0000005);
 
-            nh.param<double>("/navigation/Q_acc_x", var_acc(0), 0.0000005);
-            nh.param<double>("/navigation/Q_acc_y", var_acc(1), 0.0000005);
-            nh.param<double>("/navigation/Q_acc_z", var_acc(2), 0.0000005);
+            nh.param<double>("/navigation/Q_acc_x", W_noise(3,3), 0.0000005);
+            nh.param<double>("/navigation/Q_acc_y", W_noise(4,4), 0.0000005);
+            nh.param<double>("/navigation/Q_acc_z", W_noise(5,5), 0.0000005);
 
-            nh.param<double>("/navigation/Q_dist_force_x", var_dist_force(0), 0.0000005);
-            nh.param<double>("/navigation/Q_dist_force_y", var_dist_force(1), 0.0000005);
-            nh.param<double>("/navigation/Q_dist_force_z", var_dist_force(2), 0.0000005);
+            nh.param<double>("/navigation/Q_dist_force_x", W_noise(6,6), 0.0000005);
+            nh.param<double>("/navigation/Q_dist_force_y", W_noise(7,7), 0.0000005);
+            nh.param<double>("/navigation/Q_dist_force_z", W_noise(8,8), 0.0000005);
 
-            nh.param<double>("/navigation/Q_dist_torque_x", var_dist_torque(0), 0.0000005);
-            nh.param<double>("/navigation/Q_dist_torque_y", var_dist_torque(1), 0.0000005);
-            nh.param<double>("/navigation/Q_dist_torque_z", var_dist_torque(2), 0.0000005);
+            nh.param<double>("/navigation/Q_dist_torque_x", W_noise(9,9), 0.0000005);
+            nh.param<double>("/navigation/Q_dist_torque_y", W_noise(10,10), 0.0000005);
+            nh.param<double>("/navigation/Q_dist_torque_z", W_noise(11,11), 0.0000005);
 
-            nh.param<double>("/navigation/Q_baro_bias", var_baro_bias, 1);
+            nh.param<double>("/navigation/Q_baro_bias", W_noise(12,12), 1);
 
 
             // sensor bias
@@ -430,12 +452,11 @@ public:
 
 			Eigen::Quaterniond q(init_angle);
 
-            /// Init internal navigation variables
             rocket_fsm.state_machine = "Calibration";
 
             P.setZero(); // no error in the initial state
-            z_baro.setZero();
 
+            z_baro.setZero();
             mag_vec_inertial << 0.0,0.0,0.0;
             mag_vec_inertial_sum << 0.0,0.0,0.0;
             sum_acc << 0,0,0;
@@ -465,6 +486,7 @@ public:
             X.setZero();
             X.segment(6,4) = q.coeffs();
 
+            W.setZero();
         }
 
 		void initTopics(ros::NodeHandle &nh) 
@@ -868,14 +890,31 @@ public:
         predictionModels->state_dynamics(ADx, Xdot,IMU_omega_b,IMU_acc,control_torque_body,total_mass,I, I_inv);
 
 
-        // fetch the jacobian of f(x)
+        // fetch the jacobian wrt x of f(x,w)
         for (int i = 0; i < Xdot.size(); i++) {
             F.row(i) = Xdot(i).derivatives();
         }
 
-        predictionModels->process_noise_cov(x,Q,var_gyro,var_acc,var_dist_force,var_dist_torque,var_baro_bias);
+        ADw = W;
+        ad_noise Wdot;
+        predictionModels->noise_dynamics(ADw,Wdot,x);
+
+        // fetch the jacobian wrt w of f(x,w)
+        for (int i = 0; i < Wdot.size(); i++) {
+            G_noise.row(i) = Wdot(i).derivatives();
+        }
+
+
+
+        G_noise.block(13,6,7,7) = Eigen::Matrix<double, 7, 7>::Identity(7, 7);
+
+
+        //std::cout << G_noise  << " " << std::endl<< std::endl;
+
+        Q = G_noise*W_noise*(G_noise.transpose());
 
         Pdot = F * P + P * F.transpose() + Q;
+
 
     }
 
@@ -1127,6 +1166,8 @@ public:
 
 			rocket_state.propeller_mass = rocket.propellant_mass;
 
+            rocket_state.barometer_bias = X(19);
+
             if(is_simulation){
                 rocket_state.sensor_calibration = 1; // if we are runing in simulation, consider sensors calibrated
             }else{
@@ -1145,7 +1186,6 @@ public:
             disturbance.torque.z = X(18);
 
             dist_pub.publish(disturbance);
-
 
             rocket_utils::StateCovariance state_covariance;
 

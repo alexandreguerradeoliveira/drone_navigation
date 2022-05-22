@@ -11,13 +11,19 @@ using namespace Eigen;
 class PredictionModels{
     public:
     static const int NX = 20; // number of states
+    static const int NW = 13; //number of sources of noise in process covariance
+
 
     // Autodiff for state
     template<typename scalar_t>
     using state_t = Eigen::Matrix<scalar_t, NX, 1>;
     using state = state_t<double>;
 
-    typedef Eigen::Matrix<double, NX, NX> state_matrix;
+    // Autodiff for noise
+    template<typename scalar_t>
+    using noise_t = Eigen::Matrix<scalar_t, NW, 1>;
+    using noise = noise_t<double>;
+
 
 
     template<typename T>
@@ -70,41 +76,45 @@ class PredictionModels{
         xdot(19) = 0;
     }
 
-    void process_noise_cov(state x, state_matrix &Q,Matrix<double, 3, 1> var_gyro,Matrix<double, 3, 1> var_acc,Matrix<double, 3, 1> var_dist_force,Matrix<double, 3, 1> var_dist_torque,double var_baro_bias)
+    template<typename T>
+    void noise_dynamics(noise_t<T> w, noise_t<T> &wdot ,const state &x)
     {
-        Q.setZero();
+        wdot.setZero();
+
+        // put variance from sensor in vector form
+        Matrix<T,3,1> var_acc;var_acc << w(0),w(1),w(2);
+        Matrix<T,3,1> var_gyro;var_gyro << w(3),w(4),w(5);
+
+        Matrix<T,3,1> var_dist_force;var_dist_force << w(6),w(7),w(8);
+        Matrix<T,3,1> var_dist_torque;var_dist_torque <<w(9),w(10),w(11);
+        Matrix<T,1,1> var_baro;var_baro << w(12);
+
         // Orientation of the rocket with quaternion
-        Quaternion<double> attitude(x(9), x(6), x(7), x(8));
+        Quaternion<T> attitude(x(9), x(6), x(7), x(8));
         attitude.normalize();
-        Matrix<double, 3, 3> rot_matrix = attitude.toRotationMatrix();
+        Matrix<T, 3, 3> rot_matrix = attitude.toRotationMatrix();
 
         //quaternion covariance noise from gyro integration
-        Quaternion<double> omega_quat(0.0, var_gyro(0), var_gyro(1), var_gyro(2));
-        Matrix<double,4,1> quat_cov = 0.5*(attitude*omega_quat).coeffs();
-        Q(6,6) =quat_cov(0);
-        Q(7,7) =quat_cov(1);
-        Q(8,8) =quat_cov(2);
-        Q(9,9) =quat_cov(3);
+        Quaternion<T> omega_quat(0.0, var_gyro(0), var_gyro(1), var_gyro(2));
 
-
+        // noise propagation in predict_function
+        wdot.head(3) << 0.0,0.0,0.0;
         //Speed noise from acceleration integration
-        Matrix<double,3,1> speed_cov = rot_matrix*var_acc;
-        Q(3,3) =speed_cov(0);
-        Q(4,4) =speed_cov(1);
-        Q(5,5) =speed_cov(2);
+        wdot.segment(3, 3) = rot_matrix*var_acc;
+
+        // Quaternion noise from gyro bias propagation in kinematic equation
+        wdot.segment(6, 4) = 0.5*(attitude*omega_quat).coeffs();
+
+        // gyro noise
+        wdot.segment(10, 3) = var_gyro;
 
         // disturbance force noise
-        Q(13,13) =var_dist_force(0);
-        Q(14,14) =var_dist_force(1);
-        Q(15,15) =var_dist_force(2);
-
+        wdot.segment(13,3) = var_dist_force;
         // disturbance torque noise
-        Q(16,16) =var_dist_torque(0);
-        Q(17,17) =var_dist_torque(1);
-        Q(18,18) =var_dist_torque(2);
+        wdot.segment(16,3) = var_dist_torque;
 
         // barometer bias noise
-        Q(19,19) = var_baro_bias;
+        wdot.segment(19,1) =var_baro;
 
     }
 };
