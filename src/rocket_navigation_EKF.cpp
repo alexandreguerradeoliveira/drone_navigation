@@ -89,8 +89,10 @@ class NavigationNode {
         using noise_t = Eigen::Matrix<scalar_t, NW, 1>;
         using noise = noise_t<double>;
         using ad_noise = noise_t<AutoDiffScalar<noise>>;// Autodiff state variable
+        using ad_state_noise = state_t<AutoDiffScalar<noise>>;// Autodiff state variable
 
-        // Autodiff for barometer
+
+    // Autodiff for barometer
     	template<typename scalar_t>
     	using sensor_data_baro_t = Eigen::Matrix<scalar_t, NZBARO, 1>;
   		using sensor_data_baro = sensor_data_baro_t<double>;
@@ -326,6 +328,7 @@ public:
                 ADw(i).derivatives() = noise::Unit(div_size_w, derivative_idw);
                 derivative_idw++;
             }
+
 
             /// EKF settings initiation
             nh.param<bool>("/navigation/is_simulation", is_simulation, true);
@@ -895,20 +898,17 @@ public:
         }
 
         ADw = W;
-        ad_noise Wdot;
-        predictionModels->noise_dynamics(ADw,Wdot,x);
+        ad_state_noise Xdot_noise;
+
+
+        predictionModels->noise_dynamics(ADw,Xdot_noise,x);
+
+
 
         // fetch the jacobian wrt w of f(x,w)
-        for (int i = 0; i < Wdot.size(); i++) {
-            G_noise.row(i) = Wdot(i).derivatives();
+        for (int i = 0; i < Xdot_noise.size(); i++) {
+            G_noise.row(i) = Xdot_noise(i).derivatives();
         }
-
-
-
-        G_noise.block(13,6,7,7) = Eigen::Matrix<double, 7, 7>::Identity(7, 7);
-
-
-        //std::cout << G_noise  << " " << std::endl<< std::endl;
 
         Q = G_noise*W_noise*(G_noise.transpose());
 

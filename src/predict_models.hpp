@@ -22,7 +22,6 @@ class PredictionModels{
     // Autodiff for noise
     template<typename scalar_t>
     using noise_t = Eigen::Matrix<scalar_t, NW, 1>;
-    using noise = noise_t<double>;
 
 
 
@@ -77,9 +76,9 @@ class PredictionModels{
     }
 
     template<typename T>
-    void noise_dynamics(noise_t<T> w, noise_t<T> &wdot ,const state &x)
+    void noise_dynamics(noise_t<T> w, state_t<T> &xdot ,const state x)
     {
-        wdot.setZero();
+        xdot.setZero();
 
         // put variance from sensor in vector form
         Matrix<T,3,1> var_acc;var_acc << w(0),w(1),w(2);
@@ -98,23 +97,23 @@ class PredictionModels{
         Quaternion<T> omega_quat(0.0, var_gyro(0), var_gyro(1), var_gyro(2));
 
         // noise propagation in predict_function
-        wdot.head(3) << 0.0,0.0,0.0;
+        xdot.head(3) << 0.0,0.0,0.0;
         //Speed noise from acceleration integration
-        wdot.segment(3, 3) = rot_matrix*var_acc;
+        xdot.segment(3, 3) = rot_matrix*var_acc;
 
         // Quaternion noise from gyro bias propagation in kinematic equation
-        wdot.segment(6, 4) = 0.5*(attitude*omega_quat).coeffs();
+        xdot.segment(6, 4) = 0.5*(attitude*omega_quat).coeffs();
 
         // gyro noise
-        wdot.segment(10, 3) = var_gyro;
+        xdot.segment(10, 3) = var_gyro;
 
         // disturbance force noise
-        wdot.segment(13,3) = var_dist_force;
+        xdot.segment(13,3) = var_dist_force;
         // disturbance torque noise
-        wdot.segment(16,3) = var_dist_torque;
+        xdot.segment(16,3) = var_dist_torque;
 
         // barometer bias noise
-        wdot.segment(19,1) =var_baro;
+        xdot.segment(19,1) =var_baro;
 
     }
 };
