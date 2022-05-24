@@ -889,7 +889,6 @@ public:
         ad_state Xdot;
         predictionModels->state_dynamics(ADx, Xdot,IMU_omega_b,IMU_acc,control_torque_body,total_mass,I, I_inv);
 
-
         // fetch the jacobian wrt x of f(x,w)
         for (int i = 0; i < Xdot.size(); i++) {
             F.row(i) = Xdot(i).derivatives();
