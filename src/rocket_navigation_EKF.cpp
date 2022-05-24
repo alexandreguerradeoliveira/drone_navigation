@@ -63,10 +63,8 @@ class NavigationNode {
         bool use_barometer; // 0=do not use px4 barometer, 1=use px4 barometer
         bool use_torque; // 0=do not use torque from vehicle model, 1=use torque from vehicle model
 
-
-
-    static const int NX = 20; // number of states in the EKF
-    static const int NW = 13; //number of sources of noise in process covariance
+        static const int NX = 20; // number of states in the EKF
+        static const int NW = 13; //number of sources of noise in process covariance
 
         // observation model dimentions
 		static const int NZBARO = 1;
@@ -384,23 +382,23 @@ public:
 
             // process covariance
             W_noise.setIdentity();
-            nh.param<double>("/navigation/Q_gyro_x", W_noise(0,0), 0.0000005);
-            nh.param<double>("/navigation/Q_gyro_y", W_noise(1,1), 0.0000005);
-            nh.param<double>("/navigation/Q_gyro_z", W_noise(2,2), 0.0000005);
+            nh.param<double>("/navigation/W_gyro_x", W_noise(0,0), 0.0000005);
+            nh.param<double>("/navigation/W_gyro_y", W_noise(1,1), 0.0000005);
+            nh.param<double>("/navigation/W_gyro_z", W_noise(2,2), 0.0000005);
 
-            nh.param<double>("/navigation/Q_acc_x", W_noise(3,3), 0.0000005);
-            nh.param<double>("/navigation/Q_acc_y", W_noise(4,4), 0.0000005);
-            nh.param<double>("/navigation/Q_acc_z", W_noise(5,5), 0.0000005);
+            nh.param<double>("/navigation/W_acc_x", W_noise(3,3), 0.0000005);
+            nh.param<double>("/navigation/W_acc_y", W_noise(4,4), 0.0000005);
+            nh.param<double>("/navigation/W_acc_z", W_noise(5,5), 0.0000005);
 
-            nh.param<double>("/navigation/Q_dist_force_x", W_noise(6,6), 0.0000005);
-            nh.param<double>("/navigation/Q_dist_force_y", W_noise(7,7), 0.0000005);
-            nh.param<double>("/navigation/Q_dist_force_z", W_noise(8,8), 0.0000005);
+            nh.param<double>("/navigation/W_dist_force_x", W_noise(6,6), 0.0000005);
+            nh.param<double>("/navigation/W_dist_force_y", W_noise(7,7), 0.0000005);
+            nh.param<double>("/navigation/W_dist_force_z", W_noise(8,8), 0.0000005);
 
-            nh.param<double>("/navigation/Q_dist_torque_x", W_noise(9,9), 0.0000005);
-            nh.param<double>("/navigation/Q_dist_torque_y", W_noise(10,10), 0.0000005);
-            nh.param<double>("/navigation/Q_dist_torque_z", W_noise(11,11), 0.0000005);
+            nh.param<double>("/navigation/W_dist_torque_x", W_noise(9,9), 0.0000005);
+            nh.param<double>("/navigation/W_dist_torque_y", W_noise(10,10), 0.0000005);
+            nh.param<double>("/navigation/W_dist_torque_z", W_noise(11,11), 0.0000005);
 
-            nh.param<double>("/navigation/Q_baro_bias", W_noise(12,12), 1);
+            nh.param<double>("/navigation/W_baro_bias", W_noise(12,12), 1);
 
 
             // sensor bias
@@ -460,7 +458,7 @@ public:
             P.setZero(); // no error in the initial state
 
             z_baro.setZero();
-            mag_vec_inertial << 0.0,0.0,0.0;
+            mag_vec_inertial << 1.0,0.0,0.0;
             mag_vec_inertial_sum << 0.0,0.0,0.0;
             sum_acc << 0,0,0;
             sum_gyro << 0,0,0;
@@ -712,6 +710,7 @@ public:
             mag_data << rocket_sensor.IMU_mag.x,rocket_sensor.IMU_mag.y,rocket_sensor.IMU_mag.z;
             gyro_data << rocket_sensor.IMU_gyro.x,rocket_sensor.IMU_gyro.y,rocket_sensor.IMU_gyro.z;
 
+
             if(rocket_fsm.state_machine.compare("Coast") == 0||rocket_fsm.state_machine.compare("Launch") == 0||rocket_fsm.state_machine.compare("Rail") == 0)
             {
                 predict_step();
@@ -764,6 +763,7 @@ public:
                         std::default_random_engine generator(seed);
                         std::normal_distribution<double> gps_xy_noise(0.0, gps_noise_xy);
                         gps_pos << gps_pos(0) + gps_xy_noise(generator),gps_pos(1) + gps_xy_noise(generator),gps_pos(2) + gps_xy_noise(generator);
+
 
                         if(rocket_fsm.state_machine.compare("Coast") == 0||rocket_fsm.state_machine.compare("Launch") == 0||rocket_fsm.state_machine.compare("Rail") == 0){
                             predict_step();
@@ -1092,11 +1092,11 @@ public:
         //propagate hdot autodiff scalar at current x
         ADx = X;
         ad_sensor_data_mag hdot;
-        mesurementModels->mesurementModelMag(ADx, hdot,mag_bias);
+        mesurementModels->mesurementModelMag(ADx, hdot,mag_bias,mag_vec_inertial);
 
         //compute h(x)
         sensor_data_mag h_x;
-        mesurementModels->mesurementModelMag(X, h_x,mag_bias);
+        mesurementModels->mesurementModelMag(X, h_x,mag_bias,mag_vec_inertial);
 
         // obtain the jacobian of h(x)
         for (int i = 0; i < hdot.size(); i++) {
@@ -1106,7 +1106,7 @@ public:
         EKF_update(X,P,H_mag,R_mag,inov);
     }
 
-    // !!!!!! this does not work in flight !!!!!!!!!
+    /// !!!!!! this does not work in flight !!!!!!!!!
     void update_step_acc(const sensor_data_acc &z)
     {
         Eigen::Matrix<double, 3, 1> control_force;

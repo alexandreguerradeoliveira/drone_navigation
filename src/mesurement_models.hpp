@@ -64,13 +64,11 @@ class MesurementModels{
     }
 
     template<typename T>
-    void mesurementModelMag(const state_t<T> &x, sensor_data_mag_t<T> &z,Eigen::Matrix<double, 3, 1> mag_bias) {
+    void mesurementModelMag(const state_t<T> &x, sensor_data_mag_t<T> &z,Eigen::Matrix<double, 3, 1> mag_bias,Eigen::Matrix<double, 3, 1> mag_vec) {
         // get rotation matrix
         Eigen::Quaternion<T> attitude(x(9), x(6), x(7), x(8));
         attitude.normalize();
         Eigen::Matrix<T, 3, 3> rot_matrix = attitude.toRotationMatrix();
-        Eigen::Matrix<T, 3, 1> mag_vec;
-        mag_vec << 1.0,0.0,0.0;
 
         // express inertial magnetic vector estimate in body-frame and remove bias
         z = rot_matrix.transpose()*(mag_vec) - mag_bias;
