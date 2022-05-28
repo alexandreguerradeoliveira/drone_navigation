@@ -54,8 +54,8 @@ using namespace Eigen;
 
 class NavigationNode {
 	public:
-        const float dt_ros = 0.05;
 
+        double dt_ros = 0.05; // [s] time delay between two publishes of the message constaining the kalman state (/kalman_rocket_state)
         bool is_simulation; // 1=runs in simulation (SIL), 0=runs on drone
         bool use_gps; // 0=use optitrack, 1=use px4 gps
         bool predict_on_idle;// 1:navigation runs on idle state, 0:navigation does not run on idle state
@@ -86,11 +86,11 @@ class NavigationNode {
         template<typename scalar_t>
         using noise_t = Eigen::Matrix<scalar_t, NW, 1>;
         using noise = noise_t<double>;
-        using ad_noise = noise_t<AutoDiffScalar<noise>>;// Autodiff state variable
-        using ad_state_noise = state_t<AutoDiffScalar<noise>>;// Autodiff state variable
+        using ad_noise = noise_t<AutoDiffScalar<noise>>;// Autodiff noise variable
+        using ad_state_noise = state_t<AutoDiffScalar<noise>>;// Autodiff state variable (used when we derivate a vector with the size of state but with input a vector with size of noise)
 
 
-    // Autodiff for barometer
+        // Autodiff for barometer
     	template<typename scalar_t>
     	using sensor_data_baro_t = Eigen::Matrix<scalar_t, NZBARO, 1>;
   		using sensor_data_baro = sensor_data_baro_t<double>;
@@ -102,7 +102,7 @@ class NavigationNode {
         using sensor_data_gps = sensor_data_gps_t<double>;
         using ad_sensor_data_gps = sensor_data_gps_t<AutoDiffScalar<state_t<double>>>;// Autodiff sensor variable GPS
 
-        // Autodiff for magnetometer
+    // Autodiff for magnetometer
         template<typename scalar_t>
         using sensor_data_mag_t = Eigen::Matrix<scalar_t, NZMAG, 1>;
         using sensor_data_mag = sensor_data_mag_t<double>;
@@ -120,7 +120,7 @@ class NavigationNode {
         using sensor_data_gyro = sensor_data_gyro_t<double>;
         using ad_sensor_data_gyro = sensor_data_gyro_t<AutoDiffScalar<state_t<double>>>;// Autodiff sensor variable gyroscope
 
-        // Autodiff for gyroscope
+        // Autodiff for fake sensor
         template<typename scalar_t>
         using sensor_data_fsen_t = Eigen::Matrix<scalar_t, NZFAKESENSOR, 1>;
         using sensor_data_fsen = sensor_data_fsen_t<double>;
@@ -148,23 +148,22 @@ class NavigationNode {
 
 
 
-private:
+    private:
 
         MesurementModels *mesurementModels;
         PredictionModels *predictionModels;
 
-
         sensor_data_baro z_baro;
         sensor_data_mag mag_data;
-        sensor_data_mag raw_mag;
+    sensor_data_mag mag_data_normalized;
+
+    sensor_data_mag raw_mag;
         sensor_data_gyro gyro_data;
         sensor_data_fsen fsen_data;
         sensor_data_optitrack optitrack_data;
         sensor_data_optitrack optitrack_data0; // initial position for optitrack
 
-
-
-    // Class with useful rocket parameters and methods
+        // Class with useful rocket parameters and methods
 		Rocket rocket;
 
 		// Last received fsm
@@ -182,7 +181,7 @@ private:
         ros::Publisher dist_pub;
 
 
-    ros::Subscriber fsm_sub;
+        ros::Subscriber fsm_sub;
 		ros::Subscriber control_sub;
 		ros::Subscriber rocket_state_sub;
 		ros::Subscriber sensor_sub;
@@ -204,6 +203,7 @@ private:
         sensor_matrix_optitrack R_optitrack;
 
 
+
     /// EKF matrices
 
         // Predition matrices
@@ -220,15 +220,11 @@ private:
         Matrix<double,NZFAKESENSOR,NX> H_fsen; // computed using autodiff
         Matrix<double,NZOPTITRACK,NX> H_optitrack; // computed using autodiff
 
-
+        // matrices to calculate the covariance of the process noise
         Matrix<double,NX,NW> G_noise; // computed using autodiff
-        Matrix<double,NW,NW> W_noise; // computed using autodiff
+        Matrix<double,NW,NW> W_noise; // matrix with noise from sensors
 
-
-
-
-
-    // Kalman state
+        // Kalman state
 		state X ;
 		ad_state ADx; // state used for autodiff
 
@@ -238,10 +234,10 @@ private:
 
         // Fake GPS params
         double gps_freq = 10; //fake gps prequency
-        double gps_noise_xy = 0.0;
+        double gps_noise_xy = 0.8;
 
 
-    // px4 gps variables
+        // px4 gps variables
         double kx = 0;
         double ky = 0;
         double gps_latitude0 = 0;
@@ -251,30 +247,31 @@ private:
         double gps_longitude = 0;
         double gps_alt = 0;
 
-    // px4 barometer variables
+        // px4 barometer variables
         double pressure0 = 0.0; // pressure of barometer at the origin
         double pressure = 0.0; // pressure of barometer at the origin
 
-    //Inertia
+        //Inertia
         Matrix<double, 3, 1> I_inv;
         Matrix<double, 3, 1> I;
 
-    //mass of vehicle
+        //mass of vehicle
         double total_mass = 1.0;
         double dry_mass = 1.0;
 
-    // Current torque from Actuator
+        // Current torque from Actuator
         Matrix<double, 3, 1> control_torque_body;
 
-    // Current acceleration and angular rate from IMU
+        // Current acceleration and angular rate from IMU
         Matrix<double, 3, 1> IMU_omega_b;
         Matrix<double, 3, 1> IMU_acc;
 
-    // GPS x,y position
+        // GPS x,y position
         Eigen::Matrix<double, 3, 1> gps_pos;
 
 
-    // calibration params
+
+        // calibration params
 
         Matrix<double,3,1> acc_bias;
         Matrix<double,3,1> gyro_bias;
@@ -292,7 +289,9 @@ private:
         Matrix<double,3,1> sum_gyro;
 
         Matrix<double,3,1> mag_vec_inertial;
-        Matrix<double,3,1> mag_vec_inertial_sum;
+    Matrix<double,3,1> mag_vec_inertial_normalised;
+
+    Matrix<double,3,1> mag_vec_inertial_sum;
         double mag_declination = 0.0;
 
         int gps_homing_counter = 0;
@@ -310,7 +309,7 @@ private:
 public:
 		NavigationNode(ros::NodeHandle nh)
 		{
-            // Init autodiff derivatives
+            // Init autodiff derivative variable X
             ADx(X);
             int div_size = ADx.size();
             int derivative_idx = 0;
@@ -319,6 +318,7 @@ public:
                 derivative_idx++;
             }
 
+            // Init autodiff  derivative variable W
             ADw(W);
             int div_size_w = ADw.size();
             int derivative_idw = 0;
@@ -335,10 +335,9 @@ public:
             nh.param<bool>("/navigation/use_barometer", use_barometer, true);
             nh.param<bool>("/navigation/use_torque", use_torque, false);
             nh.param<bool>("/navigation/predict_on_idle", predict_on_idle, true);
-
+            nh.param<double>("/navigation/dt_state_publish", dt_ros, 0.05);
 
             nh.param<int>("/navigation/imu_calibration_number_of_samples", imu_calibration_counter_calibrated, 1000);
-
             nh.param<double>("/navigation/mag_declination", mag_declination, 0.0);
 
             // fake gps initiation
@@ -349,7 +348,7 @@ public:
             R_baro.setIdentity();
             nh.param<double>("/navigation/R_baro", R_baro(0), 0.0000001);
 
-            R_mag.setIdentity();
+            R_mag.setZero();
             nh.param<double>("/navigation/R_mag_x", R_mag(0,0), 0.0000001);
             nh.param<double>("/navigation/R_mag_y", R_mag(1,1), 0.0000001);
             nh.param<double>("/navigation/R_mag_z", R_mag(2,2), 0.0000001);
@@ -458,10 +457,13 @@ public:
             P.setZero(); // no error in the initial state
 
             z_baro.setZero();
-            mag_vec_inertial << 1.0,0.0,0.0;
+            mag_vec_inertial << 1.0,0.0,0.0; // this is replaced by the sensor mesured velue if nor runing in simulation
             mag_vec_inertial_sum << 0.0,0.0,0.0;
+            mag_vec_inertial_normalised << 1.0,0.0,0.0;
             sum_acc << 0,0,0;
             sum_gyro << 0,0,0;
+            mag_data_normalized << 0.0,0.0,0.0;
+
 
             rocket_sensor.IMU_acc.x = 0;
             rocket_sensor.IMU_acc.y = 0;
@@ -503,9 +505,7 @@ public:
 
                 px4_imu_sub = nh.subscribe("/mavros/imu/data_raw", 1, &NavigationNode::px4imuCallback, this);
 
-                if(use_magnetometer){
                     px4_mag_sub = nh.subscribe("/mavros/imu/mag", 1, &NavigationNode::px4magCallback, this);
-                }
 
                 if(use_barometer){
                     px4_baro_sub = nh.subscribe("/mavros/imu/static_pressure", 1, &NavigationNode::px4baroCallback, this);
@@ -588,30 +588,42 @@ public:
             raw_mag << rocket_sensor.IMU_mag.x,rocket_sensor.IMU_mag.y,rocket_sensor.IMU_mag.z; // raw data from the sensor
             mag_data = A_mag_calibration*(raw_mag-b_mag_calibration); // calibrated data
 
-            if(rocket_fsm.state_machine.compare("Calibration") == 0)
-            {
-                homing_mag();
-            }
+            mag_data_normalized = mag_data-mag_bias;
+            mag_data_normalized.normalize();
 
-            if(imu_calibrated==1){
-                if(rocket_fsm.state_machine.compare("Idle") == 0)
+            //std::cout << mag_data_normalized << "\n\n";
+
+            if(use_gps){
+                if(rocket_fsm.state_machine.compare("Calibration") == 0)
                 {
-                    if(predict_on_idle){
-                        predict_step();
-                        if(!mag_data.hasNaN()){
-                            update_step_mag(mag_data);
+                    homing_mag();
+                }
+
+                if(use_magnetometer){
+                    if(imu_calibrated==1){
+                        if(rocket_fsm.state_machine.compare("Idle") == 0)
+                        {
+                            if(predict_on_idle){
+                                if((!mag_data_normalized.hasNaN())&&(!mag_vec_inertial_normalised.hasNaN())){
+                                    predict_step();
+                                    update_step_mag(mag_data_normalized);
+                                }
+                            }
+                        }
+
+                        if(rocket_fsm.state_machine.compare("Coast") == 0||rocket_fsm.state_machine.compare("Launch") == 0||rocket_fsm.state_machine.compare("Rail") == 0)
+                        {
+                            if((!mag_data_normalized.hasNaN())&&(!mag_vec_inertial_normalised.hasNaN())){
+                                predict_step();
+                                update_step_mag(mag_data_normalized);
+                            }
                         }
                     }
                 }
-
-                if(rocket_fsm.state_machine.compare("Coast") == 0||rocket_fsm.state_machine.compare("Launch") == 0||rocket_fsm.state_machine.compare("Rail") == 0)
-                {
-                    predict_step();
-                    if(!mag_data.hasNaN()){
-                        update_step_mag(mag_data);
-                    }
-                }
             }
+
+
+
         }
 
         void px4baroCallback(const sensor_msgs::FluidPressure::ConstPtr& sensor){
@@ -766,6 +778,7 @@ public:
 
 
                         if(rocket_fsm.state_machine.compare("Coast") == 0||rocket_fsm.state_machine.compare("Launch") == 0||rocket_fsm.state_machine.compare("Rail") == 0){
+                            //
                             predict_step();
                             update_step_gps(gps_pos);
                         }
@@ -777,6 +790,8 @@ public:
 
 		/* ------------ User functions ------------ */
         void calibrate_imu(){
+            //average the initial sensor bias
+
 
             double g0 = 9.81;
 
@@ -800,44 +815,49 @@ public:
         }
 
     void homing_baro(){
+        //average the initial pressure
+
         baro_pressure_sum = baro_pressure_sum+pressure;
         pressure_homing_counter++;
         pressure0 = baro_pressure_sum/pressure_homing_counter;
     }
 
     void homing_mag(){
-        mag_vec_inertial_sum = mag_vec_inertial_sum+mag_data;
-        mag_homing_counter++;
-        mag_vec_inertial = mag_vec_inertial_sum/mag_homing_counter;
+            //average the initial magnetic field
 
-        set_yaw_mag();
+            if(!mag_data.hasNaN()){
+                mag_vec_inertial_sum = mag_vec_inertial_sum+mag_data;
+                mag_homing_counter++;
+                mag_vec_inertial = mag_vec_inertial_sum/mag_homing_counter;
+                mag_vec_inertial_normalised = mag_vec_inertial;
+                mag_vec_inertial_normalised.normalize();
+                set_yaw_mag(); // use data from accelerometer and magnetometer to give inital attitude before take-off
+
+            }
+
 
     }
 
     void set_yaw_mag(){
-//            double roll = atan2(rocket_sensor.IMU_acc.y,rocket_sensor.IMU_acc.z);
-//            double mag_g = sqrt((rocket_sensor.IMU_acc.x)*(rocket_sensor.IMU_acc.x)+(rocket_sensor.IMU_acc.y)*(rocket_sensor.IMU_acc.y)+(rocket_sensor.IMU_acc.z)*(rocket_sensor.IMU_acc.z));
-//            double pitch = asin(rocket_sensor.IMU_acc.x/mag_g);
 
-            //double yaw = atan2(mag_data(1),mag_data(0));
-
-            Matrix<double,3,1> IMU_acc_norm; IMU_acc_norm << rocket_sensor.IMU_acc.x, rocket_sensor.IMU_acc.y, rocket_sensor.IMU_acc.z;
+            // get normalised acceleration and magnetic vector from IMU
+            Matrix<double,3,1> IMU_acc_norm; IMU_acc_norm << rocket_sensor.IMU_acc.x-acc_bias(0), rocket_sensor.IMU_acc.y-acc_bias(1), rocket_sensor.IMU_acc.z-acc_bias(2);
             IMU_acc_norm.normalize();
-            Matrix<double,3,1> IMU_mag_norm = raw_mag;
+            Matrix<double,3,1> IMU_mag_norm = mag_vec_inertial;
             IMU_mag_norm.normalize();
 
+
+            // get euler angles in the NED frame from the accelerometer and magnetometer data
             double yaw =-atan2(IMU_acc_norm[0],sqrt(IMU_acc_norm[1]*IMU_acc_norm[1]+IMU_acc_norm[2]*IMU_acc_norm[2]));
             double pitch = atan2(IMU_acc_norm[1],sqrt(IMU_acc_norm[0]*IMU_acc_norm[0]+IMU_acc_norm[2]*IMU_acc_norm[2]));
             double roll = atan2(-(IMU_mag_norm[1]*cos(pitch) - IMU_mag_norm[1]*sin(pitch)),(IMU_mag_norm[0]*cos(yaw) + IMU_mag_norm[1]*sin(pitch)*sin(yaw) + IMU_mag_norm[2]*cos(pitch)*sin(yaw))) +mag_declination;
 
-            typedef Eigen::EulerSystem<-Eigen::EULER_Z, Eigen::EULER_Y, Eigen::EULER_X> euler_system;
+            // updade the current attitude estimate with the sensor data
+            typedef Eigen::EulerSystem<Eigen::EULER_Z, Eigen::EULER_Y, Eigen::EULER_X> euler_system;
             typedef Eigen::EulerAngles<double, euler_system> mag_angle_type;
-
-            mag_angle_type init_angle(yaw, pitch, roll );
-
+            mag_angle_type init_angle(roll, pitch, yaw);
             Eigen::Quaterniond q(init_angle);
             X.segment(6,4) = q.coeffs();
-
     }
 
     void homing_gps(){
@@ -851,7 +871,7 @@ public:
         gps_longitude0 = gps_longitude_sum/gps_homing_counter;
         gps_alt0 = gps_alt_sum/gps_homing_counter;
 
-        latlongtometercoeffs(gps_latitude0,kx,ky);
+        latlongtometercoeffs(gps_latitude0*DEG2RAD,kx,ky);
         gps_started = 1;
     }
 
@@ -946,23 +966,12 @@ public:
         Pnext = P + (k1_P + 2 * k2_P + 2 * k3_P + k4_P) * dT / 6;
     }
 
-    //    void RK4_fakesensor(const double dT,state &X,state &Xnext) {
-//        state k1, k2, k3, k4, Xinter;
-//
-//        state_dynamics_forcemodel(X, k1);Xinter = X + k1 * dT / 2;
-//        state_dynamics_forcemodel( Xinter, k2);Xinter = X + k2 * dT / 2;
-//        state_dynamics_forcemodel( Xinter, k3); Xinter = X + k3 * dT;
-//        state_dynamics_forcemodel( Xinter, k4);
-//
-//        Xnext = X + (k1 + 2 * k2 + 2 * k3 + k4) * dT / 6;
-//
-//    }
+
 
 
 		void predict_step()
 		{
-
-//            // //Attitude diplay on terminal
+            // //Attitude diplay on terminal
 //            Eigen::Quaternion<double> attitude(X(9), X(6), X(7), X(8));
 //            Matrix<double,3,3> R = attitude.toRotationMatrix();
 //
@@ -970,13 +979,11 @@ public:
 //            double beta = atan2(R(0,2),sqrt(R(0,0) * R(0,0) + R(0,1) * R(0,1)));
 //            double gamma = atan2(-R(0,1),R(0,0));
 //            std::cout << "alpha:" << alpha/DEG2RAD << " beta:" << beta/DEG2RAD << " gamma:" << gamma/DEG2RAD << "\n\n";
-//    //
 
 
             static double last_predict_time = ros::Time::now().toSec();
 			double dT = ros::Time::now().toSec() - last_predict_time;
             RK4(dT,X,P,X,P);
-            //RK4_fakesensor(dT,X,Z_fakesensor);
 			last_predict_time = ros::Time::now().toSec();
         }
 
@@ -1089,19 +1096,23 @@ public:
 
     void update_step_mag(const sensor_data_mag &z)
     {
+
         //propagate hdot autodiff scalar at current x
         ADx = X;
         ad_sensor_data_mag hdot;
-        mesurementModels->mesurementModelMag(ADx, hdot,mag_bias,mag_vec_inertial);
+        mesurementModels->mesurementModelMag(ADx, hdot, mag_vec_inertial_normalised);
+
+
 
         //compute h(x)
         sensor_data_mag h_x;
-        mesurementModels->mesurementModelMag(X, h_x,mag_bias,mag_vec_inertial);
+        mesurementModels->mesurementModelMag(X, h_x, mag_vec_inertial_normalised);
 
         // obtain the jacobian of h(x)
         for (int i = 0; i < hdot.size(); i++) {
             H_mag.row(i) = hdot(i).derivatives();
         }
+
         Eigen::Matrix<double, NZMAG, 1> inov = z-h_x;
         EKF_update(X,P,H_mag,R_mag,inov);
     }

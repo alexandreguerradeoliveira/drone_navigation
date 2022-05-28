@@ -2,10 +2,10 @@
  * Mesurement models used in the EKF node.
  * Alexandre Guerra de Oliveira
  */
-//#include "Eigen/Core"
-//#include "Eigen/Geometry"
 #include "eigen3/Eigen/Core"
 #include "eigen3/Eigen/Geometry"
+#include <eigen3/unsupported/Eigen/EulerAngles>
+
 using namespace Eigen;
 
 class MesurementModels{
@@ -55,7 +55,7 @@ class MesurementModels{
 
     template<typename T>
     void mesurementModelBaro(const state_t<T> &x, sensor_data_baro_t<T> &z) {
-        z(0) = x(2) +x(19);
+        z(0) = x(2) + x(19);
     }
 
     template<typename T>
@@ -64,15 +64,15 @@ class MesurementModels{
     }
 
     template<typename T>
-    void mesurementModelMag(const state_t<T> &x, sensor_data_mag_t<T> &z,Eigen::Matrix<double, 3, 1> mag_bias,Eigen::Matrix<double, 3, 1> mag_vec) {
+    void mesurementModelMag(const state_t<T> &x, sensor_data_mag_t<T> &z,Eigen::Matrix<double, 3, 1> mag_vec) {
         // get rotation matrix
         Eigen::Quaternion<T> attitude(x(9), x(6), x(7), x(8));
         attitude.normalize();
         Eigen::Matrix<T, 3, 3> rot_matrix = attitude.toRotationMatrix();
+        Eigen::Matrix<T, 3, 1> aa;aa << 0,0,0; // this is only used to get arround the NAN bug in Eigen
 
         // express inertial magnetic vector estimate in body-frame and remove bias
-        z = rot_matrix.transpose()*(mag_vec) - mag_bias;
-
+        z = rot_matrix.transpose()*(mag_vec)+aa;
     }
 
     template<typename T>

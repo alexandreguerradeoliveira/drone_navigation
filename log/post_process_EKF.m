@@ -23,11 +23,10 @@ EKF_cov_state = select(bag,'Topic','/process_cov');
 EKF_cov_msg = readMessages(EKF_cov_state,'DataFormat','struct');
 
 
-state_data(:,1) = sim_state.MessageList.Time-EKF_state.MessageList.Time(1);
-kalman_state_data(:,1) = EKF_state.MessageList.Time - EKF_state.MessageList.Time(1);
+
 %%
 
-for k = 1:size(EKF_msg,1)
+for k = 1:1:min(size(EKF_cov_msg,1),size(EKF_msg,1))
     kalman_state_data(k,2:7+4+3) = [EKF_msg{k}.Pose.Position.X,EKF_msg{k}.Pose.Position.Y,EKF_msg{k}.Pose.Position.Z,EKF_msg{k}.Twist.Linear.X,EKF_msg{k}.Twist.Linear.Y,EKF_msg{k}.Twist.Linear.Z,EKF_msg{k}.Pose.Orientation.X,EKF_msg{k}.Pose.Orientation.Y,EKF_msg{k}.Pose.Orientation.Z,EKF_msg{k}.Pose.Orientation.W,EKF_msg{1}.Twist.Angular.X,EKF_msg{1}.Twist.Angular.Y,EKF_msg{1}.Twist.Angular.Z];
     baro_bias(k) = EKF_msg{k}.BarometerBias;
 end
@@ -36,12 +35,14 @@ for k = 1:size(sim_msg,1)
     state_data(k,2:7+4+3) = [sim_msg{k}.Pose.Position.X,sim_msg{k}.Pose.Position.Y,sim_msg{k}.Pose.Position.Z,sim_msg{k}.Twist.Linear.X,sim_msg{k}.Twist.Linear.Y,sim_msg{k}.Twist.Linear.Z,sim_msg{k}.Pose.Orientation.X,sim_msg{k}.Pose.Orientation.Y,sim_msg{k}.Pose.Orientation.Z,sim_msg{k}.Pose.Orientation.W,sim_msg{1}.Twist.Angular.X,sim_msg{1}.Twist.Angular.Y,sim_msg{1}.Twist.Angular.Z];
 end
 
-for k = 1:size(EKF_cov_msg,1)
+for k = 1:min(size(EKF_cov_msg,1),size(EKF_msg,1))
     kalman_covariance_diagonal_data(k,:)= EKF_cov_msg{k}.Covariance; 
 end
 
-
 %pos,vel,quat,omega,m,
+
+state_data(:,1) = sim_state.MessageList.Time-EKF_state.MessageList.Time(1);
+kalman_state_data(:,1) = EKF_state.MessageList.Time(1:min(size(EKF_cov_msg,1),size(EKF_msg,1))) - EKF_state.MessageList.Time(1);
 
 
 %% plot trajectory
@@ -57,6 +58,8 @@ legend("Simulated trajectory","Kalman Trajectory")
 %% error plots
 % time vector
 tt_kal = kalman_state_data(:,1);
+
+tt_kal = tt_kal(1:min(size(EKF_cov_msg,1),size(EKF_msg,1)));
 
 % interpolate messages in a common time vector
 interp_state_x = interp1(state_data(:,1),state_data(:,2),tt_kal);

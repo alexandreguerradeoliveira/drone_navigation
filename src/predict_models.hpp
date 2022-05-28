@@ -48,8 +48,6 @@ class PredictionModels{
         // compute total torque in body frame
         Matrix<T, 3, 1> total_torque_body;
         total_torque_body = rot_matrix.transpose()*(dist_torque_inertial) + control_torque_body;
-        //total_torque_body =  rot_matrix.transpose()*(dist_torque_inertial);
-
 
         // -------------- Differential equation ---------------------
 

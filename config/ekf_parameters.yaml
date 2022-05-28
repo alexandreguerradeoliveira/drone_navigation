@@ -13,6 +13,7 @@ use_magnetometer: true #!!only read if is_simulation=0!!:0=do not use px4 magnet
 use_barometer: true #!!only read if is_simulation=0!!:0=do not use px4 barometer, 1=use px4 barometer
 use_torque: false #0=do not use torque from vehicle model, 1=use torque from vehicle model
 predict_on_idle: true #!!only read if is_simulation=0!!:1:navigation runs on idle state, 0:navigation does not run on idle state
+dt_state_publish: 0.05 # [s] time delay between each publish of /kalman_rocket_state message
 
 imu_calibration_number_of_samples: 2000 #!!only used if is_simulation=0!!:1: number of samples needed to calibrate imu
 
@@ -31,22 +32,22 @@ mag_bias_x: 0.0 # [T]
 mag_bias_y: 0.0 # [T]
 mag_bias_z: 0.0 # [T]
 
-mag_declination: 0 #[rad] #magnetic declination at launch
+mag_declination: -0.04712389 #(value for lausanne in may 2022, ! negative) #[rad] #magnetic declination at launch
 
 # magnetometer calibration matrices: A and B such that: m_calibrated = A*(m_uncalibrated - b)
-A_mag_00: 1.3425
-A_mag_01: 0.3672
-A_mag_02: -0.0384
-A_mag_10: 0.3672
-A_mag_11: 1.0343
-A_mag_12: 0.0327
-A_mag_20: -0.0384
-A_mag_21: 0.0327
-A_mag_22: 0.8007
+A_mag_00: 0.9825
+A_mag_01: 0.0130
+A_mag_02: 0.0072
+A_mag_10: 0.0130
+A_mag_11: 0.9890
+A_mag_12: 0.0106
+A_mag_20: 0.0072
+A_mag_21: 0.0106
+A_mag_22: 1.0295
 
-b_mag_0: 0.000003097
-b_mag_1: -0.000000303
-b_mag_2: -0.000003619
+b_mag_0: 0.0000000717
+b_mag_1: -0.0000000764
+b_mag_2: 0.0000004612
 
 ### covariance matrices
 
@@ -54,16 +55,16 @@ b_mag_2: -0.000003619
 W_gyro_x: 0.00002182
 W_gyro_y: 0.00002528
 W_gyro_z: 0.00000384
-W_acc_x: 0.0092
-W_acc_y: 0.0103
-W_acc_z: 0.0013
+W_acc_x: 0.0053
+W_acc_y: 0.0072
+W_acc_z: 0.0052
 W_dist_force_x:  0.0000000000001
 W_dist_force_y:  0.0000000000001
 W_dist_force_z:  0.0000000000001
 W_dist_torque_x: 0.0000000000001
 W_dist_torque_y: 0.0000000000001
 W_dist_torque_z: 0.0000000000001
-W_baro_bias: 0.01
+W_baro_bias: 0.0000000000001
 
 ## measurement update covariances (R) / sensor covarience matrix
 ## ONLY THE DIAGONALS
@@ -76,15 +77,15 @@ R_acc_x: 0.0053 #accelerometer covariance [m^2.s^-4]
 R_acc_y: 0.0072 #accelerometer covariance [m^2.s^-4]
 R_acc_z: 0.0052 #accelerometer covariance [m^2.s^-4]
 
-R_mag_x: 0.000000000000131 #magnetometer covariance [T^2]
-R_mag_y: 0.000000000000178 #magnetometer covariance [T^2]
-R_mag_z: 0.000000000001149 #magnetometer covariance [T^2]
+R_mag_x: 1  #magnetometer covariance normalised mag vec [-]
+R_mag_y: 1  #magnetometer covariance normalised mag vec [-]
+R_mag_z: 0.0078   #magnetometer covariance normalised mag vec [-]
 
 R_baro: 0.04 #barometer covariance [m^2]
 
-R_gps_x: 0.0064 #gps covariance [m^2] # we get this information from the gps system when not in simulation
-R_gps_y: 0.0064 #gps covariance [m^2] # we get this information from the gps system when not in simulation
-R_gps_z: 0.0064 #gps covariance [m^2] # we get this information from the gps system when not in simulation
+R_gps_x: 0.64 #gps covariance [m^2] # we get this information from the gps system when not in simulation
+R_gps_y: 0.64 #gps covariance [m^2] # we get this information from the gps system when not in simulation
+R_gps_z: 0.64 #gps covariance [m^2] # we get this information from the gps system when not in simulation
 
 R_optitrack_x: 0.000000001 #optitrack covariance [m^2]
 R_optitrack_y: 0.000000001 #optitrack covariance [m^2]
@@ -94,6 +95,6 @@ R_fsen_x: 10 #fake sensor "covariance" [m^2.s^-2]
 R_fsen_y: 10 #fake sensor "covariance" [m^2.s^-2]
 R_fsen_z: 10 #fake sensor "covariance" [m^2.s^-2]
 
-## fake gps parameters
-fake_gps_freq: 10
-fake_gps_variance_xy: 0.08
+## fake gps parameters (this is only used in simulation)
+fake_gps_freq: 20
+fake_gps_variance_xy: 0.8
