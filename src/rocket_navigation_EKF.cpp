@@ -389,13 +389,13 @@ public:
             nh.param<double>("/navigation/W_acc_y", W_noise(4,4), 0.0000005);
             nh.param<double>("/navigation/W_acc_z", W_noise(5,5), 0.0000005);
 
-            nh.param<double>("/navigation/W_dist_force_x", W_noise(6,6), 0.0000005);
-            nh.param<double>("/navigation/W_dist_force_y", W_noise(7,7), 0.0000005);
-            nh.param<double>("/navigation/W_dist_force_z", W_noise(8,8), 0.0000005);
+            nh.param<double>("/navigation/w_acc_bias_x", W_noise(6,6), 0.0000005);
+            nh.param<double>("/navigation/w_acc_bias_y", W_noise(7,7), 0.0000005);
+            nh.param<double>("/navigation/w_acc_bias_z", W_noise(8,8), 0.0000005);
 
-            nh.param<double>("/navigation/W_dist_torque_x", W_noise(9,9), 0.0000005);
-            nh.param<double>("/navigation/W_dist_torque_y", W_noise(10,10), 0.0000005);
-            nh.param<double>("/navigation/W_dist_torque_z", W_noise(11,11), 0.0000005);
+            nh.param<double>("/navigation/w_gyro_bias_x", W_noise(9,9), 0.0000005);
+            nh.param<double>("/navigation/w_gyro_bias_y", W_noise(10,10), 0.0000005);
+            nh.param<double>("/navigation/w_gyro_bias_z", W_noise(11,11), 0.0000005);
 
             nh.param<double>("/navigation/W_baro_bias", W_noise(12,12), 1);
 
@@ -738,6 +738,7 @@ public:
             if(optitrack_started==0){
                 optitrack_data0 = optitrack_data;
                 optitrack_started = 1;
+                std::cout << "optitrack fusion started\n\n";
             }
 
             if(rocket_fsm.state_machine.compare("Idle") == 0)
@@ -953,6 +954,7 @@ public:
         IMU_acc << rocket_sensor.IMU_acc.x-acc_bias(0), rocket_sensor.IMU_acc.y-acc_bias(1), rocket_sensor.IMU_acc.z-acc_bias(2);
 
         //update rotation speed to those of gyro
+        //Matrix<double, 3, 1> var_gyro_bias;var_gyro_bias << X(16),X(17),X(18);
         X.segment(10,3) = IMU_omega_b;
 
         //RK4 integration

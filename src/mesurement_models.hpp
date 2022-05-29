@@ -55,7 +55,8 @@ class MesurementModels{
 
     template<typename T>
     void mesurementModelBaro(const state_t<T> &x, sensor_data_baro_t<T> &z) {
-        z(0) = x(2) + x(19);
+        z(0) = x(2) - x(19);
+
     }
 
     template<typename T>
@@ -83,14 +84,14 @@ class MesurementModels{
         attitude.normalize();
         Eigen::Matrix<T, 3, 3> rot_matrix = attitude.toRotationMatrix();
 
-        Eigen::Matrix<T, 3, 1> dist_force;
-        dist_force << x(13),x(14),x(15);
+        Eigen::Matrix<T, 3, 1> acc_bias_dyn;
+        acc_bias_dyn << x(13),x(14),x(15);
 
         Eigen::Matrix<T, 3, 1> total_force_inertial;
-        total_force_inertial = rot_matrix*(control_force) - Eigen::Vector3d::UnitZ().template cast<T>()*(total_mass)*g0 + dist_force;
+        total_force_inertial = rot_matrix*(control_force) - Eigen::Vector3d::UnitZ().template cast<T>()*(total_mass)*g0;
 
         // express gravity estimate in body-frame and add bias
-        z = rot_matrix.transpose()*(total_force_inertial/(total_mass)) - acc_bias;
+        z = rot_matrix.transpose()*(total_force_inertial/(total_mass)) - acc_bias-acc_bias_dyn;
     }
 
     template<typename T>
@@ -105,6 +106,9 @@ class MesurementModels{
 
     template<typename T>
     void mesurementModelGyro(const state_t<T> &x, sensor_data_gyro_t<T> &z,Eigen::Matrix<double, 3, 1> gyro_bias) {
+        Matrix<T, 3, 1> var_gyro_bias;
+        var_gyro_bias << x(16),x(17),x(18);
+
         z = x.segment(10,3)-gyro_bias;
     }
 

@@ -24,7 +24,6 @@ class PredictionModels{
     using noise_t = Eigen::Matrix<scalar_t, NW, 1>;
 
 
-
     template<typename T>
     void state_dynamics(state_t<T> x, state_t<T> &xdot,Matrix<double, 3, 1> IMU_omega_b,Matrix<double, 3, 1> IMU_acc,Matrix<double, 3, 1> control_torque_body,double total_mass,Matrix<double, 3, 1> I,Matrix<double, 3, 1> I_inv)
     {
@@ -37,17 +36,13 @@ class PredictionModels{
         Matrix<T, 3, 3> rot_matrix = attitude.toRotationMatrix();
 
         // Angular velocity omega in quaternion format to compute quaternion derivative
-        Quaternion<T> omega_quat(0.0, IMU_omega_b(0), IMU_omega_b(1), IMU_omega_b(2));
 
-        Matrix<T, 3, 1> dist_force_inertial;
-        dist_force_inertial << x(13),x(14),x(15);
+        Matrix<T, 3, 1> var_gyro_bias;
+        var_gyro_bias << x(16),x(17),x(18);
 
-        Matrix<T, 3, 1> dist_torque_inertial;
-        dist_torque_inertial << x(16),x(17),x(18);
+        Matrix<T, 3, 1> var_acc_bias;
+        var_acc_bias << x(13),x(14),x(15);
 
-        // compute total torque in body frame
-        Matrix<T, 3, 1> total_torque_body;
-        total_torque_body = rot_matrix.transpose()*(dist_torque_inertial) + control_torque_body;
 
         // -------------- Differential equation ---------------------
 
@@ -55,18 +50,20 @@ class PredictionModels{
         xdot.head(3) = x.segment(3,3);
 
         // Speed variation is acceleration
-        xdot.segment(3,3) =  rot_matrix*IMU_acc - Vector3d::UnitZ().template cast<T>() *g0 +(dist_force_inertial)/(total_mass);
+        xdot.segment(3,3) =  rot_matrix*(IMU_acc - var_acc_bias)-Eigen::Vector3d::UnitZ()*g0;
 
         // Quaternion variation is 0.5*q*omega_quat if omega is in the body frame
+        Quaternion<T> omega_quat(0.0, IMU_omega_b(0)-var_gyro_bias(0), IMU_omega_b(1)-var_gyro_bias(1), IMU_omega_b(2)-var_gyro_bias(2));
         xdot.segment(6, 4) =  0.5*(attitude*omega_quat).coeffs();
 
         // Angular speed (Euler's rigid dynamical equation)
-        xdot.segment(10, 3) = (total_torque_body - IMU_omega_b.cross(I.template cast<T>().cwiseProduct(IMU_omega_b))).cwiseProduct(I_inv.template cast<T>());
+        //xdot.segment(10, 3) = ( - IMU_omega_b.cross(I.template cast<T>().cwiseProduct(IMU_omega_b))).cwiseProduct(I_inv.template cast<T>());
+        xdot.segment(10, 3) << 0.0,0.0,0.0;
 
-        // Disturbance forces static update
+        // bias static update
         xdot.segment(13, 3) << 0, 0, 0;
 
-        // Disturbance moments static update
+        // bias static update
         xdot.segment(16, 3) << 0, 0, 0;
 
         // Barometer bias static update
@@ -82,8 +79,8 @@ class PredictionModels{
         Matrix<T,3,1> var_acc;var_acc << w(0),w(1),w(2);
         Matrix<T,3,1> var_gyro;var_gyro << w(3),w(4),w(5);
 
-        Matrix<T,3,1> var_dist_force;var_dist_force << w(6),w(7),w(8);
-        Matrix<T,3,1> var_dist_torque;var_dist_torque <<w(9),w(10),w(11);
+        Matrix<T,3,1> var_acc_bias;var_acc_bias << w(6),w(7),w(8);
+        Matrix<T,3,1> var_gyro_bias;var_gyro_bias <<w(9),w(10),w(11);
         Matrix<T,1,1> var_baro;var_baro << w(12);
 
         // Orientation of the rocket with quaternion
@@ -103,12 +100,14 @@ class PredictionModels{
         xdot.segment(6, 4) = 0.5*(attitude*omega_quat).coeffs();
 
         // gyro noise
-        xdot.segment(10, 3) = var_gyro;
+        //xdot.segment(10, 3) << 0.0,0.0,0.0;
+        xdot.segment(10, 3) =var_gyro;
+
 
         // disturbance force noise
-        xdot.segment(13,3) = var_dist_force;
+        xdot.segment(13,3) = var_acc_bias;
         // disturbance torque noise
-        xdot.segment(16,3) = var_dist_torque;
+        xdot.segment(16,3) = var_gyro_bias;
 
         // barometer bias noise
         xdot.segment(19,1) =var_baro;

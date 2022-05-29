@@ -58,13 +58,13 @@ W_gyro_z: 0.00000384
 W_acc_x: 0.0053
 W_acc_y: 0.0072
 W_acc_z: 0.0052
-W_dist_force_x:  0.0000000000001
-W_dist_force_y:  0.0000000000001
-W_dist_force_z:  0.0000000000001
-W_dist_torque_x: 0.0000000000001
-W_dist_torque_y: 0.0000000000001
-W_dist_torque_z: 0.0000000000001
-W_baro_bias: 0.0000000000001
+w_acc_bias_x:  0.0000001
+w_acc_bias_y:  0.0000001
+w_acc_bias_z:  0.0000001
+w_gyro_bias_x: 0.00000000000001
+w_gyro_bias_y: 0.00000000000001
+w_gyro_bias_z: 0.00000000000001
+W_baro_bias: 0.00000001
 
 ## measurement update covariances (R) / sensor covarience matrix
 ## ONLY THE DIAGONALS
@@ -77,8 +77,8 @@ R_acc_x: 0.0053 #accelerometer covariance [m^2.s^-4]
 R_acc_y: 0.0072 #accelerometer covariance [m^2.s^-4]
 R_acc_z: 0.0052 #accelerometer covariance [m^2.s^-4]
 
-R_mag_x: 1  #magnetometer covariance normalised mag vec [-]
-R_mag_y: 1  #magnetometer covariance normalised mag vec [-]
+R_mag_x: 0.0078   #magnetometer covariance normalised mag vec [-]
+R_mag_y: 0.0078   #magnetometer covariance normalised mag vec [-]
 R_mag_z: 0.0078   #magnetometer covariance normalised mag vec [-]
 
 R_baro: 0.04 #barometer covariance [m^2]
