@@ -13,7 +13,6 @@ class PredictionModels{
     static const int NX = 20; // number of states
     static const int NW = 13; //number of sources of noise in process covariance
 
-
     // Autodiff for state
     template<typename scalar_t>
     using state_t = Eigen::Matrix<scalar_t, NX, 1>;
@@ -43,7 +42,6 @@ class PredictionModels{
         Matrix<T, 3, 1> var_acc_bias;
         var_acc_bias << x(13),x(14),x(15);
 
-
         // -------------- Differential equation ---------------------
 
         // Position variation is speed
@@ -56,14 +54,13 @@ class PredictionModels{
         Quaternion<T> omega_quat(0.0, IMU_omega_b(0)-var_gyro_bias(0), IMU_omega_b(1)-var_gyro_bias(1), IMU_omega_b(2)-var_gyro_bias(2));
         xdot.segment(6, 4) =  0.5*(attitude*omega_quat).coeffs();
 
-        // Angular speed (Euler's rigid dynamical equation)
-        //xdot.segment(10, 3) = ( - IMU_omega_b.cross(I.template cast<T>().cwiseProduct(IMU_omega_b))).cwiseProduct(I_inv.template cast<T>());
+        // Angular speed static update
         xdot.segment(10, 3) << 0.0,0.0,0.0;
 
-        // bias static update
+        // acc bias static update
         xdot.segment(13, 3) << 0, 0, 0;
 
-        // bias static update
+        // gyro bias static update
         xdot.segment(16, 3) << 0, 0, 0;
 
         // Barometer bias static update
@@ -100,13 +97,12 @@ class PredictionModels{
         xdot.segment(6, 4) = 0.5*(attitude*omega_quat).coeffs();
 
         // gyro noise
-        //xdot.segment(10, 3) << 0.0,0.0,0.0;
         xdot.segment(10, 3) =var_gyro;
 
 
-        // disturbance force noise
+        // accelerometer bias noise
         xdot.segment(13,3) = var_acc_bias;
-        // disturbance torque noise
+        // gyroscope bias noise
         xdot.segment(16,3) = var_gyro_bias;
 
         // barometer bias noise

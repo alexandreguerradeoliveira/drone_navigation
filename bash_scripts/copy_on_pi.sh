@@ -8,6 +8,4 @@ rsync -avuzh ~/drone_ws/src/template_gnc drone@"$DRONE_IP":~/drone_ws/src
 #rsync -avuzh $(rospack find optitrack_ekf) drone@"$DRONE_IP":~/drone_ws/src
 rsync -avuzh ~/drone_ws/src/mavros_interface drone@"$DRONE_IP":~/drone_ws/src
 
-
-
 # copy the environment loader

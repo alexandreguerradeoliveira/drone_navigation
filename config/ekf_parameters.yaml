@@ -11,9 +11,8 @@ is_simulation: false # 1=runs in simulation (SIL), 0=runs on drone
 use_gps: true #!!only read if is_simulation=0!!:0=use optitrack, 1=use px4 gps
 use_magnetometer: true #!!only read if is_simulation=0!!:0=do not use px4 magnetometer, 1=use px4 magnetometer
 use_barometer: true #!!only read if is_simulation=0!!:0=do not use px4 barometer, 1=use px4 barometer
-use_torque: false #0=do not use torque from vehicle model, 1=use torque from vehicle model
 predict_on_idle: true #!!only read if is_simulation=0!!:1:navigation runs on idle state, 0:navigation does not run on idle state
-dt_state_publish: 0.05 # [s] time delay between each publish of /kalman_rocket_state message
+dt_state_publish: 0.05 # [s] time delay between each publish of EKF state estimation (/kalman_rocket_state message)
 
 imu_calibration_number_of_samples: 2000 #!!only used if is_simulation=0!!:1: number of samples needed to calibrate imu
 
@@ -73,10 +72,6 @@ R_gyro_x: 0.00002182 #gyroscope covariance [rad^2.s^-2]
 R_gyro_y: 0.00002528  #gyroscope covariance [rad^2.s^-2]
 R_gyro_z: 0.00000384 #gyroscope covariance [rad^2.s^-2]
 
-R_acc_x: 0.0053 #accelerometer covariance [m^2.s^-4]
-R_acc_y: 0.0072 #accelerometer covariance [m^2.s^-4]
-R_acc_z: 0.0052 #accelerometer covariance [m^2.s^-4]
-
 R_mag_x: 0.0078   #magnetometer covariance normalised mag vec [-]
 R_mag_y: 0.0078   #magnetometer covariance normalised mag vec [-]
 R_mag_z: 0.0078   #magnetometer covariance normalised mag vec [-]
@@ -90,10 +85,6 @@ R_gps_z: 0.64 #gps covariance [m^2] # we get this information from the gps syste
 R_optitrack_x: 0.000000001 #optitrack covariance [m^2]
 R_optitrack_y: 0.000000001 #optitrack covariance [m^2]
 R_optitrack_z: 0.000000001 #optitrack covariance [m^2]
-
-R_fsen_x: 10 #fake sensor "covariance" [m^2.s^-2]
-R_fsen_y: 10 #fake sensor "covariance" [m^2.s^-2]
-R_fsen_z: 10 #fake sensor "covariance" [m^2.s^-2]
 
 ## fake gps parameters (this is only used in simulation)
 fake_gps_freq: 20

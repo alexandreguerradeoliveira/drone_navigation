@@ -16,8 +16,6 @@ sim_msg = readMessages(sim_state,'DataFormat','struct');
 EKF_cov_state = select(bag,'Topic','/process_cov');
 EKF_cov_msg = readMessages(EKF_cov_state,'DataFormat','struct');
 
-EKF_dist = select(bag,'Topic','/kalman_disturbance ');
-EKF_dist_msg = readMessages(EKF_dist,'DataFormat','struct');
 
 %%
 

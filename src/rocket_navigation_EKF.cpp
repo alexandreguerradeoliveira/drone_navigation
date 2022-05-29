@@ -61,7 +61,6 @@ class NavigationNode {
         bool predict_on_idle;// 1:navigation runs on idle state, 0:navigation does not run on idle state
         bool use_magnetometer; // 0=do not use px4 magnetometer, 1=use px4 magnetometer
         bool use_barometer; // 0=do not use px4 barometer, 1=use px4 barometer
-        bool use_torque; // 0=do not use torque from vehicle model, 1=use torque from vehicle model
 
         static const int NX = 20; // number of states in the EKF
         static const int NW = 13; //number of sources of noise in process covariance
@@ -70,9 +69,7 @@ class NavigationNode {
 		static const int NZBARO = 1;
         static const int NZGPS = 3;
         static const int NZMAG = 3;
-        static const int NZACC = 3;
         static const int NZGYRO = 3;
-        static const int NZFAKESENSOR= 3;
         static const int NZOPTITRACK = 3;
 
         /// Autodiff variables
@@ -108,23 +105,12 @@ class NavigationNode {
         using sensor_data_mag = sensor_data_mag_t<double>;
         using ad_sensor_data_mag = sensor_data_mag_t<AutoDiffScalar<state_t<double>>>;// Autodiff sensor variable magnetometer
 
-        // Autodiff for accelerometer
-        template<typename scalar_t>
-        using sensor_data_acc_t = Eigen::Matrix<scalar_t, NZACC, 1>;
-        using sensor_data_acc = sensor_data_acc_t<double>;
-        using ad_sensor_data_acc = sensor_data_acc_t<AutoDiffScalar<state_t<double>>>;// Autodiff sensor variable magnetometer
-
         // Autodiff for gyroscope
         template<typename scalar_t>
         using sensor_data_gyro_t = Eigen::Matrix<scalar_t, NZGYRO, 1>;
         using sensor_data_gyro = sensor_data_gyro_t<double>;
         using ad_sensor_data_gyro = sensor_data_gyro_t<AutoDiffScalar<state_t<double>>>;// Autodiff sensor variable gyroscope
 
-        // Autodiff for fake sensor
-        template<typename scalar_t>
-        using sensor_data_fsen_t = Eigen::Matrix<scalar_t, NZFAKESENSOR, 1>;
-        using sensor_data_fsen = sensor_data_fsen_t<double>;
-        using ad_sensor_data_fsen = sensor_data_fsen_t<AutoDiffScalar<state_t<double>>>;// Autodiff sensor variable fake sensor
 
         // Autodiff for optitrack
         template<typename scalar_t>
@@ -138,14 +124,10 @@ class NavigationNode {
     	typedef Eigen::Matrix<double, NZBARO, NZBARO> sensor_matrix_baro;
         typedef Eigen::Matrix<double, NZGPS, NZGPS> sensor_matrix_gps;
         typedef Eigen::Matrix<double, NZMAG, NZMAG> sensor_matrix_mag;
-        typedef Eigen::Matrix<double, NZACC, NZACC> sensor_matrix_acc;
         typedef Eigen::Matrix<double, NZGYRO, NZGYRO> sensor_matrix_gyro;
-        typedef Eigen::Matrix<double, NZFAKESENSOR, NZFAKESENSOR> sensor_matrix_fsen;
         typedef Eigen::Matrix<double, NZOPTITRACK, NZOPTITRACK> sensor_matrix_optitrack;
 
-        typedef Eigen::Matrix<double, NW, NW> covariance_input;
-
-
+        typedef Eigen::Matrix<double, NW, NW> covariance_input; // covariance matrix of noise in prediction
 
 
     private:
@@ -159,7 +141,6 @@ class NavigationNode {
 
     sensor_data_mag raw_mag;
         sensor_data_gyro gyro_data;
-        sensor_data_fsen fsen_data;
         sensor_data_optitrack optitrack_data;
         sensor_data_optitrack optitrack_data0; // initial position for optitrack
 
@@ -178,7 +159,7 @@ class NavigationNode {
 		// List of subscribers and publishers
 		ros::Publisher nav_pub;
         ros::Publisher cov_pub;
-        ros::Publisher dist_pub;
+        ros::Publisher bias_pub;
 
 
         ros::Subscriber fsm_sub;
@@ -197,9 +178,7 @@ class NavigationNode {
         sensor_matrix_baro R_baro;
         sensor_matrix_gps R_gps;
         sensor_matrix_mag R_mag;
-        sensor_matrix_acc R_acc;
         sensor_matrix_gyro R_gyro;
-        sensor_matrix_fsen R_fsen;
         sensor_matrix_optitrack R_optitrack;
 
 
@@ -215,9 +194,7 @@ class NavigationNode {
         Matrix<double,NZBARO,NX> H_baro; // computed using autodiff
         Matrix<double,NZGPS,NX> H_gps; // computed using autodiff
         Matrix<double,NZMAG,NX> H_mag; // computed using autodiff
-        Matrix<double,NZACC,NX> H_acc; // computed using autodiff
         Matrix<double,NZGYRO,NX> H_gyro; // computed using autodiff
-        Matrix<double,NZFAKESENSOR,NX> H_fsen; // computed using autodiff
         Matrix<double,NZOPTITRACK,NX> H_optitrack; // computed using autodiff
 
         // matrices to calculate the covariance of the process noise
@@ -333,7 +310,6 @@ public:
             nh.param<bool>("/navigation/use_gps", use_gps, true);
             nh.param<bool>("/navigation/use_magnetometer", use_magnetometer, false);
             nh.param<bool>("/navigation/use_barometer", use_barometer, true);
-            nh.param<bool>("/navigation/use_torque", use_torque, false);
             nh.param<bool>("/navigation/predict_on_idle", predict_on_idle, true);
             nh.param<double>("/navigation/dt_state_publish", dt_ros, 0.05);
 
@@ -353,20 +329,12 @@ public:
             nh.param<double>("/navigation/R_mag_y", R_mag(1,1), 0.0000001);
             nh.param<double>("/navigation/R_mag_z", R_mag(2,2), 0.0000001);
 
-            R_acc.setIdentity();
-            nh.param<double>("/navigation/R_acc_x", R_acc(0,0), 1);
-            nh.param<double>("/navigation/R_acc_y", R_acc(1,1), 1);
-            nh.param<double>("/navigation/R_acc_z", R_acc(2,2), 1);
 
             R_optitrack.setIdentity();
             nh.param<double>("/navigation/R_optitrack_x", R_optitrack(0,0), 0.000000001);
             nh.param<double>("/navigation/R_optitrack_y", R_optitrack(1,1), 0.000000001);
             nh.param<double>("/navigation/R_optitrack_z", R_optitrack(2,2), 0.000000001);
 
-            R_fsen.setIdentity();
-            nh.param<double>("/navigation/R_fsen_x", R_fsen(0,0), 10);
-            nh.param<double>("/navigation/R_fsen_y", R_fsen(1,1), 10);
-            nh.param<double>("/navigation/R_fsen_z", R_fsen(2,2), 10);
 
             R_gps.setIdentity();
             nh.param<double>("/navigation/R_gps_x", R_gps(0,0), 0.000064);
@@ -465,6 +433,7 @@ public:
             mag_data_normalized << 0.0,0.0,0.0;
 
 
+            // initiate sensor variables
             rocket_sensor.IMU_acc.x = 0;
             rocket_sensor.IMU_acc.y = 0;
             rocket_sensor.IMU_acc.z = 0;
@@ -526,16 +495,12 @@ public:
             // Create process covariance matrix diagonal publisher
             cov_pub = nh.advertise<rocket_utils::StateCovariance>("/process_cov", 10);
 
-            // Create disturbance force and torque publisher
-            dist_pub = nh.advertise<geometry_msgs::Wrench>("/kalman_disturbance", 10);
+            // Create publisher for imu bias
+            bias_pub = nh.advertise<geometry_msgs::Wrench>("/kalman_bias", 10);
 
 			// Subscribe to time_keeper for fsm and time
 			fsm_sub = nh.subscribe("/gnc_fsm_pub", 1, &NavigationNode::fsmCallback, this);
 
-            // Subscribe to control to get torque from vehicle model predictions
-            if(use_torque){
-                control_sub = nh.subscribe("/cmg_command_0", 1, &NavigationNode::controlCallback, this);
-            }
 
 		}
 
@@ -546,17 +511,6 @@ public:
 		{
 			rocket_fsm.state_machine = fsm->state_machine;
 		}
-
-		// Callback function to store last received control
-		void controlCallback(const rocket_utils::Control::ConstPtr& control)
-		{
-			rocket_control.torque = control->torque;
-            rocket_control.force = control->force;
-
-            //double outer_angle = control->outer_angle;
-            //double outer_angle = control->outer_angle;
-            
-        }
 
         void px4imuCallback(const sensor_msgs::Imu::ConstPtr& sensor)
         {
@@ -946,9 +900,6 @@ public:
         I_inv << 1 / rocket.total_Inertia[0], 1 / rocket.total_Inertia[1], 1 / rocket.total_Inertia[2];
         I << rocket.total_Inertia[0], rocket.total_Inertia[1],rocket.total_Inertia[2];
 
-        // Current torque from Actuator
-        control_torque_body << rocket_control.torque.x, rocket_control.torque.y, rocket_control.torque.z;
-
         // Current acceleration and angular rate from IMU
         IMU_omega_b << rocket_sensor.IMU_gyro.x-gyro_bias(0), rocket_sensor.IMU_gyro.y-gyro_bias(1), rocket_sensor.IMU_gyro.z-gyro_bias(2);
         IMU_acc << rocket_sensor.IMU_acc.x-acc_bias(0), rocket_sensor.IMU_acc.y-acc_bias(1), rocket_sensor.IMU_acc.z-acc_bias(2);
@@ -996,7 +947,6 @@ public:
             ADx = X;
             ad_sensor_data_baro hdot;
             mesurementModels->mesurementModelBaro(ADx, hdot);
-
 
             //compute h(x)
             sensor_data_baro h_x;
@@ -1055,26 +1005,6 @@ public:
 
     }
 
-    void update_step_fsen(const sensor_data_fsen &z)
-    {
-        //propagate hdot autodiff scalar at current x
-        ADx = X;
-        ad_sensor_data_fsen hdot;
-        mesurementModels->mesurementModelFakeSensor(ADx, hdot);
-
-        //compute h(x)
-        sensor_data_fsen h_x;
-        mesurementModels->mesurementModelFakeSensor(X, h_x);
-
-        // obtain the jacobian of h(x)
-        for (int i = 0; i < hdot.size(); i++) {
-            H_fsen.row(i) = hdot(i).derivatives();
-        }
-
-        Eigen::Matrix<double, NZFAKESENSOR, 1> inov = z-h_x;
-        EKF_update(X,P,H_fsen,R_fsen,inov);
-
-    }
 
     void update_step_gyro(const sensor_data_gyro &z)
     {
@@ -1119,30 +1049,6 @@ public:
         EKF_update(X,P,H_mag,R_mag,inov);
     }
 
-    /// !!!!!! this does not work in flight !!!!!!!!!
-    void update_step_acc(const sensor_data_acc &z)
-    {
-        Eigen::Matrix<double, 3, 1> control_force;
-        control_force << rocket_control.force.x, rocket_control.force.y, rocket_control.force.z;
-
-        //propagate hdot autodiff scalar at current x
-        ADx = X;
-        ad_sensor_data_acc hdot;
-        mesurementModels->mesurementModelAcc(ADx, hdot,control_force,total_mass,acc_bias);
-
-        //compute h(x)
-        sensor_data_acc h_x;
-        mesurementModels->mesurementModelAcc(X, h_x,control_force,total_mass,acc_bias);
-
-        // obtain the jacobian of h(x)
-        for (int i = 0; i < hdot.size(); i++) {
-            H_acc.row(i) = hdot(i).derivatives();
-        }
-
-        Eigen::Matrix<double, NZACC, 1> inov = z-h_x;
-        EKF_update(X,P,H_acc,R_acc,inov);
-
-    }
 
 
 		void updateNavigation()
@@ -1188,20 +1094,18 @@ public:
 
 			nav_pub.publish(rocket_state);
 
-            geometry_msgs::Wrench disturbance;
-            disturbance.force.x = X(13);
-            disturbance.force.y = X(14);
-            disturbance.force.z = X(15);
 
-            disturbance.torque.x = X(16);
-            disturbance.torque.y = X(17);
-            disturbance.torque.z = X(18);
-
-            dist_pub.publish(disturbance);
+            // publish imu bias as if it was a wrench
+            geometry_msgs::Wrench imu_bias;
+            imu_bias.force.x = X(13);
+            imu_bias.force.y = X(14);
+            imu_bias.force.z = X(15);
+            imu_bias.torque.x = X(16);
+            imu_bias.torque.y = X(17);
+            imu_bias.torque.z = X(18);
+            bias_pub.publish(imu_bias);
 
             rocket_utils::StateCovariance state_covariance;
-
-            //std::vector<Vector3d> P_vec(NX*NX);
             Matrix<double,NX,1> P_diag;
             P_diag = P.diagonal();
             std::vector<double> P_vec(P_diag.data(), P_diag.data() + NX);
