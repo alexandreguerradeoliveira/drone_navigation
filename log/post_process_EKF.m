@@ -253,4 +253,175 @@ if calculate_cov_eul == 1
     plot(tt_kal,-Z_confidance*std_eul3*(180/pi),'red');
 end
 
+%%
+%% Plots 
+figure
+tiledlayout(3,3)
 
+nexttile
+hold on
+plot(tt_kal,interp_state_x);
+plot(tt_kal,kalman_state_data(:,2));
+
+plot(tt_kal,interp_state_x+Z_confidance*sqrt(kalman_covariance_diagonal_data(:,2)),'red');
+plot(tt_kal,interp_state_x-Z_confidance*sqrt(kalman_covariance_diagonal_data(:,2)),'red');
+xlabel("time [s]")
+ylabel("position [m]")
+title("position x")
+legend("simulated","EKF","95% confidance")
+
+nexttile
+hold on
+plot(tt_kal,interp_state_y);
+plot(tt_kal,kalman_state_data(:,3));
+
+title("position y")
+plot(tt_kal,interp_state_y+Z_confidance*sqrt(kalman_covariance_diagonal_data(:,3)),'red');
+plot(tt_kal,interp_state_y-Z_confidance*sqrt(kalman_covariance_diagonal_data(:,3)),'red');
+xlabel("time [s]")
+ylabel("position [m]")
+legend("simulated","EKF","95% confidance")
+
+
+nexttile
+hold on
+title("position z")
+plot(tt_kal,interp_state_z);
+plot(tt_kal,kalman_state_data(:,4));
+
+plot(tt_kal,interp_state_z+Z_confidance*sqrt(kalman_covariance_diagonal_data(:,4)),'red');
+plot(tt_kal,interp_state_z+-Z_confidance*sqrt(kalman_covariance_diagonal_data(:,4)),'red');
+xlabel("time [s]")
+ylabel("position [m]")
+legend("simulated","EKF","95% confidance")
+
+nexttile
+hold on
+plot(tt_kal,interp_state_vel_x);
+plot(tt_kal,kalman_state_data(:,5));
+title("Velocity x (Inertial frame)")
+plot(tt_kal,interp_state_vel_x+Z_confidance*sqrt(kalman_covariance_diagonal_data(:,5)),'red');
+plot(tt_kal,interp_state_vel_x-Z_confidance*sqrt(kalman_covariance_diagonal_data(:,5)),'red');
+xlabel("time [s]")
+ylabel("velocity [m/s]")
+legend("simulated","EKF","95% confidance")
+nexttile
+hold on
+plot(tt_kal,interp_state_vel_y);
+plot(tt_kal,kalman_state_data(:,6));
+title("Velocity y (Inertial frame)")
+plot(tt_kal,interp_state_vel_y+Z_confidance*sqrt(kalman_covariance_diagonal_data(:,6)),'red');
+plot(tt_kal,interp_state_vel_y-Z_confidance*sqrt(kalman_covariance_diagonal_data(:,6)),'red');
+xlabel("time [s]")
+ylabel("velocity [m/s]")
+legend("simulated","EKF","95% confidance")
+nexttile
+hold on
+plot(tt_kal,interp_state_vel_z);
+plot(tt_kal,kalman_state_data(:,7));
+plot(tt_kal,interp_state_vel_z+Z_confidance*sqrt(kalman_covariance_diagonal_data(:,7)),'red');
+plot(tt_kal,interp_state_vel_z-Z_confidance*sqrt(kalman_covariance_diagonal_data(:,7)),'red');
+title("Velocity z (Inertial frame)")
+xlabel("time [s]")
+ylabel("velocity [m/s]")
+legend("simulated","EKF","95% confidance")
+
+% Euler angles plot
+
+nexttile
+title("Euler angle: \psi")
+hold on
+plot(tt_kal,eul_sim(:,1));
+plot(tt_kal,eul_kal(:,1));
+xlabel('time [s]')
+ylabel('angle [deg]')
+
+if calculate_cov_eul == 1
+    plot(tt_kal,eul_sim(:,1)+Z_confidance*std_eul1*(180/pi),'red');
+    plot(tt_kal,eul_sim(:,1)-Z_confidance*std_eul1*(180/pi),'red');
+legend("\psi_{sim}","\psi_{kal}","95% confidance")
+
+else
+    legend("\psi_{sim}","\psi_{kal}")
+end
+
+
+
+
+nexttile
+title("Euler angle: \theta")
+hold on
+plot(tt_kal,eul_sim(:,2));
+plot(tt_kal,eul_kal(:,2));
+xlabel('time [s]')
+ylabel('angle [deg]')
+
+if calculate_cov_eul == 1
+    plot(tt_kal,eul_sim(:,2)+Z_confidance*std_eul2*(180/pi),'red');
+    plot(tt_kal,eul_sim(:,2)-Z_confidance*std_eul2*(180/pi),'red');
+legend("\theta_{sim}","\theta_{kal}","95% confidance")
+
+else
+    legend("\theta_{sim}","\theta_{kal}")
+end
+
+
+
+
+nexttile
+title("Euler angle: \theta")
+hold on
+plot(tt_kal,eul_sim(:,3));
+plot(tt_kal,eul_kal(:,3));
+xlabel('time [s]')
+ylabel('angle [deg]')
+
+
+if calculate_cov_eul == 1
+    plot(tt_kal,eul_sim(:,3)+Z_confidance*std_eul3*(180/pi),'red');
+    plot(tt_kal,eul_sim(:,3)-Z_confidance*std_eul3*(180/pi),'red');
+    legend("\phi_{sim}","\phi_{kal}","95% confidance")
+
+else
+    legend("\phi_{sim}","\phi_{kal}")
+end
+
+
+
+
+%%
+
+figure
+
+hold on
+title("altitude (position in z direction)")
+plot(tt_kal,interp_state_z);
+plot(tt_kal,kalman_state_data(:,4));
+
+%plot(tt_kal,interp_state_z+Z_confidance*sqrt(kalman_covariance_diagonal_data(:,4)),'red');
+%plot(tt_kal,interp_state_z+-Z_confidance*sqrt(kalman_covariance_diagonal_data(:,4)),'red');
+xlabel("time [s]")
+ylabel("position [m]")
+% legend("simulated","EKF","95% confidance")
+legend("simulated","EKF estimate")
+
+
+figure
+hold on
+title("error in altitude z")
+plot(tt_kal,err_z);
+
+plot(tt_kal,Z_confidance*sqrt(kalman_covariance_diagonal_data(:,4)),'red');
+plot(tt_kal,-Z_confidance*sqrt(kalman_covariance_diagonal_data(:,4)),'red');
+xlabel("time [s]")
+ylabel("position [m]")
+legend("simulated","EKF","95% confidance")
+
+figure
+
+title("barometer bias")
+plot(tt_kal,baro_bias);
+xlabel("time [s]")
+ylabel("bias [m]")
+yline(0.1)
+legend("estimated barometer bias","real bias")

@@ -45,8 +45,7 @@ class MesurementModels{
 
     template<typename T>
     void mesurementModelBaro(const state_t<T> &x, sensor_data_baro_t<T> &z) {
-        z(0) = x(2) - x(19);
-
+        z(0) = x(2) + x(19);
     }
 
     template<typename T>
@@ -64,6 +63,7 @@ class MesurementModels{
 
         // express inertial magnetic vector estimate in body-frame and remove bias
         z = rot_matrix.transpose()*(mag_vec)+aa;
+
     }
 
     template<typename T>
