@@ -62,8 +62,8 @@ class NavigationNode {
         bool use_magnetometer; // 0=do not use px4 magnetometer, 1=use px4 magnetometer
         bool use_barometer; // 0=do not use px4 barometer, 1=use px4 barometer
 
-        static const int NX = 20; // number of states in the EKF
-        static const int NW = 13; //number of sources of noise in process covariance
+        static const int NX = 26; // number of states in the EKF
+        static const int NW = 19; //number of sources of noise in process covariance
 
         // observation model dimentions
 		static const int NZBARO = 1;
@@ -211,7 +211,7 @@ class NavigationNode {
 
         // Fake GPS params
         double gps_freq = 10; //fake gps prequency
-        double gps_noise_xy = 0.8;
+        double gps_noise = 0.8;
 
 
         // px4 gps variables
@@ -318,7 +318,7 @@ public:
 
             // fake gps initiation
             nh.param<double>("/navigation/fake_gps_freq", gps_freq, 10);
-            nh.param<double>("/navigation/fake_gps_variance_xy", gps_noise_xy, 10);
+            nh.param<double>("/navigation/fake_gps_variance", gps_noise, 10);
 
             // sensor covariance initiation
             R_baro.setIdentity();
@@ -357,16 +357,23 @@ public:
             nh.param<double>("/navigation/W_acc_y", W_noise(4,4), 0.0000005);
             nh.param<double>("/navigation/W_acc_z", W_noise(5,5), 0.0000005);
 
-            nh.param<double>("/navigation/w_acc_bias_x", W_noise(6,6), 0.0000005);
-            nh.param<double>("/navigation/w_acc_bias_y", W_noise(7,7), 0.0000005);
-            nh.param<double>("/navigation/w_acc_bias_z", W_noise(8,8), 0.0000005);
+            nh.param<double>("/navigation/W_acc_bias_x", W_noise(6,6), 0.0000005);
+            nh.param<double>("/navigation/W_acc_bias_y", W_noise(7,7), 0.0000005);
+            nh.param<double>("/navigation/W_acc_bias_z", W_noise(8,8), 0.0000005);
 
-            nh.param<double>("/navigation/w_gyro_bias_x", W_noise(9,9), 0.0000005);
-            nh.param<double>("/navigation/w_gyro_bias_y", W_noise(10,10), 0.0000005);
-            nh.param<double>("/navigation/w_gyro_bias_z", W_noise(11,11), 0.0000005);
+            nh.param<double>("/navigation/W_gyro_bias_x", W_noise(9,9), 0.0000005);
+            nh.param<double>("/navigation/W_gyro_bias_y", W_noise(10,10), 0.0000005);
+            nh.param<double>("/navigation/W_gyro_bias_z", W_noise(11,11), 0.0000005);
 
             nh.param<double>("/navigation/W_baro_bias", W_noise(12,12), 1);
 
+            nh.param<double>("/navigation/W_mag_x", W_noise(13,13), 0.00001);
+            nh.param<double>("/navigation/W_mag_y", W_noise(14,14), 0.00001);
+            nh.param<double>("/navigation/W_mag_z", W_noise(15,15), 0.00001);
+
+            nh.param<double>("/navigation/W_mag_bias_x", W_noise(16,16), 0.00001);
+            nh.param<double>("/navigation/W_mag_bias_y", W_noise(17,17), 0.00001);
+            nh.param<double>("/navigation/W_mag_bias_z", W_noise(18,18), 0.00001);
 
             // sensor bias
             nh.param<double>("/navigation/gyro_bias_x", gyro_bias(0),0.0);
@@ -380,6 +387,7 @@ public:
             nh.param<double>("/navigation/mag_bias_x", mag_bias(0),0.0);
             nh.param<double>("/navigation/mag_bias_y", mag_bias(1),0.0);
             nh.param<double>("/navigation/mag_bias_z", mag_bias(2),0.0);
+
 
             /// magnetometer calibration matrices
             A_mag_calibration.setIdentity();
@@ -457,6 +465,7 @@ public:
             total_mass = rocket.propellant_mass+dry_mass;
             X.setZero();
             X.segment(6,4) = q.coeffs();
+            X.segment(20,3) = mag_vec_inertial; // if we are not in simulation, this gets replaced by the sensor estimation
 
             W.setZero();
         }
@@ -728,12 +737,10 @@ public:
                         // construct a trivial random generator engine from a time-based seed:
                         unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
                         std::default_random_engine generator(seed);
-                        std::normal_distribution<double> gps_xy_noise(0.0, gps_noise_xy);
+                        std::normal_distribution<double> gps_xy_noise(0.0, gps_noise);
                         gps_pos << gps_pos(0) + gps_xy_noise(generator),gps_pos(1) + gps_xy_noise(generator),gps_pos(2) + gps_xy_noise(generator);
 
-
                         if(rocket_fsm.state_machine.compare("Coast") == 0||rocket_fsm.state_machine.compare("Launch") == 0||rocket_fsm.state_machine.compare("Rail") == 0){
-                            //
                             predict_step();
                             update_step_gps(gps_pos);
                         }
@@ -780,6 +787,7 @@ public:
     void homing_mag(){
             //average the initial magnetic field
 
+
             if(!mag_data.hasNaN()){
                 mag_vec_inertial_sum = mag_vec_inertial_sum+mag_data;
                 mag_homing_counter++;
@@ -787,7 +795,7 @@ public:
                 mag_vec_inertial_normalised = mag_vec_inertial;
                 mag_vec_inertial_normalised.normalize();
                 set_yaw_mag(); // use data from accelerometer and magnetometer to give inital attitude before take-off
-
+                X.segment(20,3) = mag_vec_inertial;
             }
 
 
@@ -800,7 +808,6 @@ public:
             IMU_acc_norm.normalize();
             Matrix<double,3,1> IMU_mag_norm = mag_vec_inertial;
             IMU_mag_norm.normalize();
-
 
             // get euler angles in the NED frame from the accelerometer and magnetometer data
             double yaw =-atan2(IMU_acc_norm[0],sqrt(IMU_acc_norm[1]*IMU_acc_norm[1]+IMU_acc_norm[2]*IMU_acc_norm[2]));
@@ -924,7 +931,7 @@ public:
 
 		void predict_step()
 		{
-            // //Attitude diplay on terminal
+//             //Attitude diplay on terminal
 //            Eigen::Quaternion<double> attitude(X(9), X(6), X(7), X(8));
 //            Matrix<double,3,3> R = attitude.toRotationMatrix();
 //
@@ -934,10 +941,16 @@ public:
 //            std::cout << "alpha:" << alpha/DEG2RAD << " beta:" << beta/DEG2RAD << " gamma:" << gamma/DEG2RAD << "\n\n";
 
 
+
             static double last_predict_time = ros::Time::now().toSec();
 			double dT = ros::Time::now().toSec() - last_predict_time;
             RK4(dT,X,P,X,P);
-			last_predict_time = ros::Time::now().toSec();
+            Matrix<double,3,1> magnetic_vector;
+            magnetic_vector =  X.segment(20,3);
+            magnetic_vector.normalize();
+            X.segment(20,3) = magnetic_vector;
+
+            last_predict_time = ros::Time::now().toSec();
         }
 
 
@@ -1032,13 +1045,13 @@ public:
         //propagate hdot autodiff scalar at current x
         ADx = X;
         ad_sensor_data_mag hdot;
-        mesurementModels->mesurementModelMag(ADx, hdot, mag_vec_inertial_normalised);
+        mesurementModels->mesurementModelMag(ADx, hdot);
 
 
 
         //compute h(x)
         sensor_data_mag h_x;
-        mesurementModels->mesurementModelMag(X, h_x, mag_vec_inertial_normalised);
+        mesurementModels->mesurementModelMag(X, h_x);
 
         // obtain the jacobian of h(x)
         for (int i = 0; i < hdot.size(); i++) {

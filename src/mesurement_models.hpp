@@ -11,7 +11,7 @@ using namespace Eigen;
 class MesurementModels{
     public:
 
-    static const int NX = 20; // number of states
+    static const int NX = 26; // number of states
 
     static const int NZBARO = 1;
     static const int NZGPS = 3;
@@ -54,16 +54,19 @@ class MesurementModels{
     }
 
     template<typename T>
-    void mesurementModelMag(const state_t<T> &x, sensor_data_mag_t<T> &z,Eigen::Matrix<double, 3, 1> mag_vec) {
+    void mesurementModelMag(const state_t<T> &x, sensor_data_mag_t<T> &z) {
         // get rotation matrix
         Eigen::Quaternion<T> attitude(x(9), x(6), x(7), x(8));
         attitude.normalize();
         Eigen::Matrix<T, 3, 3> rot_matrix = attitude.toRotationMatrix();
         Eigen::Matrix<T, 3, 1> aa;aa << 0,0,0; // this is only used to get around an NAN bug in Eigen Autodiff
 
-        // express inertial magnetic vector estimate in body-frame and remove bias
-        z = rot_matrix.transpose()*(mag_vec)+aa;
+        Eigen::Matrix<T, 3, 1> mag_vec;mag_vec << x(20),x(21),x(22);
 
+        Eigen::Matrix<T, 3, 1> mag_bias;mag_bias << x(23),x(24),x(25);
+
+        // express inertial magnetic vector estimate in body-frame and remove bias
+        z = rot_matrix.transpose()*(mag_vec)-mag_bias+aa;
     }
 
     template<typename T>

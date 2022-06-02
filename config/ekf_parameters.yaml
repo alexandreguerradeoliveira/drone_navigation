@@ -50,20 +50,26 @@ b_mag_2: 0.0000004612
 
 ### covariance matrices
 
-##  Definition of Q (process covariance matrix)
+##  Definition of W (process covariance matrix Q = GWG' with G = df/dw (non-additive noise formulation))
 W_gyro_x: 0.00002182
 W_gyro_y: 0.00002528
 W_gyro_z: 0.00000384
 W_acc_x: 0.0053
 W_acc_y: 0.0072
 W_acc_z: 0.0052
-w_acc_bias_x:  0.0000001
-w_acc_bias_y:  0.0000001
-w_acc_bias_z:  0.0000001
-w_gyro_bias_x: 0.00000000000001
-w_gyro_bias_y: 0.00000000000001
-w_gyro_bias_z: 0.00000000000001
-W_baro_bias: 0.01
+W_acc_bias_x:  0.0000001
+W_acc_bias_y:  0.0000001
+W_acc_bias_z:  0.0000001
+W_gyro_bias_x: 0.00000000000001
+W_gyro_bias_y: 0.00000000000001
+W_gyro_bias_z: 0.00000000000001
+W_baro_bias: 0.00000001
+W_mag_x: 0.000000001
+W_mag_y: 0.000000001
+W_mag_z: 0.000000001
+W_mag_bias_x: 0.0000001
+W_mag_bias_y: 0.0000001
+W_mag_bias_z: 0.0000001
 
 ## measurement update covariances (R) / sensor covarience matrix
 ## ONLY THE DIAGONALS
@@ -78,14 +84,15 @@ R_mag_z: 0.0078   #magnetometer covariance normalised mag vec [-]
 
 R_baro: 0.04 #barometer covariance [m^2]
 
-R_gps_x: 0.0064 #gps covariance [m^2] # we get this information from the gps system when not in simulation
-R_gps_y: 0.0064 #gps covariance [m^2] # we get this information from the gps system when not in simulation
-R_gps_z: 0.0064 #gps covariance [m^2] # we get this information from the gps system when not in simulation
+R_gps_x: 0.64 #gps covariance [m^2] # we get this information from the gps system when not in simulation
+R_gps_y: 0.64 #gps covariance [m^2] # we get this information from the gps system when not in simulation
+R_gps_z: 0.64 #gps covariance [m^2] # we get this information from the gps system when not in simulation
 
 R_optitrack_x: 0.000000001 #optitrack covariance [m^2]
 R_optitrack_y: 0.000000001 #optitrack covariance [m^2]
 R_optitrack_z: 0.000000001 #optitrack covariance [m^2]
 
+
 ## fake gps parameters (this is only used in simulation)
 fake_gps_freq: 20
-fake_gps_variance_xy: 0.08
+fake_gps_variance: 0.8

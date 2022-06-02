@@ -10,8 +10,8 @@ using namespace Eigen;
 
 class PredictionModels{
     public:
-    static const int NX = 20; // number of states
-    static const int NW = 13; //number of sources of noise in process covariance
+    static const int NX = 26; // number of states
+    static const int NW = 19; //number of sources of noise in process covariance
 
     // Autodiff for state
     template<typename scalar_t>
@@ -65,6 +65,13 @@ class PredictionModels{
 
         // Barometer bias static update
         xdot(19) = 0;
+
+        // Magnetic field vector in inertial frame: static update
+        xdot.segment(20, 3) << 0, 0, 0;
+
+        // magnetometer bias static update
+        xdot.segment(23, 3) << 0, 0, 0;
+
     }
 
     template<typename T>
@@ -79,6 +86,9 @@ class PredictionModels{
         Matrix<T,3,1> var_acc_bias;var_acc_bias << w(6),w(7),w(8);
         Matrix<T,3,1> var_gyro_bias;var_gyro_bias <<w(9),w(10),w(11);
         Matrix<T,1,1> var_baro;var_baro << w(12);
+        Matrix<T,3,1> var_mag_field;var_mag_field <<w(13),w(14),w(15);
+        Matrix<T,3,1> var_mag_bias;var_mag_bias <<w(16),w(17),w(18);
+
 
         // Orientation of the rocket with quaternion
         Quaternion<T> attitude(x(9), x(6), x(7), x(8));
@@ -99,7 +109,6 @@ class PredictionModels{
         // gyro noise
         xdot.segment(10, 3) =var_gyro;
 
-
         // accelerometer bias noise
         xdot.segment(13,3) = var_acc_bias;
         // gyroscope bias noise
@@ -108,5 +117,10 @@ class PredictionModels{
         // barometer bias noise
         xdot.segment(19,1) =var_baro;
 
+        // magnetic field noise
+        xdot.segment(20,3) = var_mag_field;
+
+        // magnetic bias noise
+        xdot.segment(23,3) = var_mag_bias;
     }
 };

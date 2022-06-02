@@ -5,7 +5,6 @@ calculate_cov_eul = 0; % set equals to zero to not calculate confidance interval
 
 %% read data
 bag = rosbag("log.bag");
-% bag = rosbag("log_terrace_vertical_mov.bag");
 
 EKF_state = select(bag,'Topic','/kalman_rocket_state');
 EKF_msg = readMessages(EKF_state,'DataFormat','struct');
