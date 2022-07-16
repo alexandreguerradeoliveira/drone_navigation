@@ -18,10 +18,10 @@
 
 #include "rocket_utils/FSM.h"
 #include "rocket_utils/State.h"
+#include "rocket_utils/ExtendedState.h"
 #include "rocket_utils/ControlMomentGyro.h"
 #include "rocket_utils/Control.h"
 #include "rocket_utils/Sensor.h"
-#include "rocket_utils/StateCovariance.h"
 
 #include "geometry_msgs/PoseStamped.h"
 #include "geometry_msgs/Wrench.h"
@@ -157,10 +157,8 @@ class NavigationNode {
 		rocket_utils::Sensor rocket_sensor;
 
 		// List of subscribers and publishers
-		ros::Publisher nav_pub;
-        ros::Publisher cov_pub;
-        ros::Publisher bias_pub;
-
+		ros::Publisher state_pub;
+        ros::Publisher extended_state_pub;
 
         ros::Subscriber fsm_sub;
 		ros::Subscriber control_sub;
@@ -173,15 +171,12 @@ class NavigationNode {
         ros::Subscriber px4_gps_sub;
         ros::Subscriber px4_baro_sub;
 
-
         // Kalman matrix
         sensor_matrix_baro R_baro;
         sensor_matrix_gps R_gps;
         sensor_matrix_mag R_mag;
         sensor_matrix_gyro R_gyro;
         sensor_matrix_optitrack R_optitrack;
-
-
 
     /// EKF matrices
 
@@ -212,7 +207,6 @@ class NavigationNode {
         // Fake GPS params
         double gps_freq = 10; //fake gps prequency
         double gps_noise = 0.8;
-
 
         // px4 gps variables
         double kx = 0;
@@ -246,8 +240,6 @@ class NavigationNode {
         // GPS x,y position
         Eigen::Matrix<double, 3, 1> gps_pos;
 
-
-
         // calibration params
 
         Matrix<double,3,1> acc_bias;
@@ -266,9 +258,9 @@ class NavigationNode {
         Matrix<double,3,1> sum_gyro;
 
         Matrix<double,3,1> mag_vec_inertial;
-    Matrix<double,3,1> mag_vec_inertial_normalised;
+        Matrix<double,3,1> mag_vec_inertial_normalised;
 
-    Matrix<double,3,1> mag_vec_inertial_sum;
+        Matrix<double,3,1> mag_vec_inertial_sum;
         double mag_declination = 0.0;
 
         int gps_homing_counter = 0;
@@ -280,7 +272,7 @@ class NavigationNode {
 
         int gps_started = 0; // set to 1 once gps is ready
         int optitrack_started = 0; // set to 1 once optitrack is ready
-        int imu_calibrated = 0; // 1:imu calibrated, 0:imu not calibrated (imu=gyroscope and accelerometer)
+        bool imu_calibrated = true; // 1:imu calibrated, 0:imu not calibrated (imu=gyroscope and accelerometer)
 
 
 public:
@@ -470,7 +462,7 @@ public:
             W.setZero();
         }
 
-		void initTopics(ros::NodeHandle &nh) 
+		void initTopics(ros::NodeHandle &nh)
 		{
 
             if(is_simulation){
@@ -496,16 +488,19 @@ public:
                 }
 
             }
-            
+
 
 			// Create filtered rocket state publisher
-			nav_pub = nh.advertise<rocket_utils::State>("/kalman_rocket_state", 10);
+			//nav_pub = nh.advertise<rocket_utils::State>("/kalman_rocket_state", 10);
 
             // Create process covariance matrix diagonal publisher
-            cov_pub = nh.advertise<rocket_utils::StateCovariance>("/process_cov", 10);
+            //cov_pub = nh.advertise<rocket_utils::StateCovariance>("/process_cov", 10);
+            state_pub = nh.advertise<rocket_utils::State>("/kalman_rocket_state", 10);
+            extended_state_pub = nh.advertise<rocket_utils::ExtendedState>("/extended_kalman_rocket_state", 10);
+
 
             // Create publisher for imu bias
-            bias_pub = nh.advertise<geometry_msgs::Wrench>("/kalman_bias", 10);
+            //bias_pub = nh.advertise<geometry_msgs::Wrench>("/kalman_bias", 10);
 
 			// Subscribe to time_keeper for fsm and time
 			fsm_sub = nh.subscribe("/gnc_fsm_pub", 1, &NavigationNode::fsmCallback, this);
@@ -553,8 +548,6 @@ public:
 
             mag_data_normalized = mag_data-mag_bias;
             mag_data_normalized.normalize();
-
-            //std::cout << mag_data_normalized << "\n\n";
 
             if(use_gps){
                 if(rocket_fsm.state_machine.compare("Calibration") == 0)
@@ -685,7 +678,6 @@ public:
             mag_data << rocket_sensor.IMU_mag.x,rocket_sensor.IMU_mag.y,rocket_sensor.IMU_mag.z;
             gyro_data << rocket_sensor.IMU_gyro.x,rocket_sensor.IMU_gyro.y,rocket_sensor.IMU_gyro.z;
 
-
             if(rocket_fsm.state_machine.compare("Coast") == 0||rocket_fsm.state_machine.compare("Launch") == 0||rocket_fsm.state_machine.compare("Rail") == 0)
             {
                 predict_step();
@@ -722,15 +714,15 @@ public:
                 }
             }
         }
-		
+
 		// Callback function to fake gps with sensor data !
         void gpsCallback(const rocket_utils::State::ConstPtr& state)
 		{
-			
+
 			static double last_predict_time_gps = ros::Time::now().toSec();
 
             double dT_gps = ros::Time::now().toSec() - last_predict_time_gps;
-			
+
 			if(dT_gps>=1/gps_freq){
 			            gps_pos << state->pose.position.x,state->pose.position.y,state->pose.position.z;
 
@@ -754,7 +746,6 @@ public:
         void calibrate_imu(){
             //average the initial sensor bias
 
-
             double g0 = 9.81;
 
             Matrix<double,3,1> IMU_omega_b_raw; IMU_omega_b_raw<< rocket_sensor.IMU_gyro.x, rocket_sensor.IMU_gyro.y, rocket_sensor.IMU_gyro.z;
@@ -767,7 +758,6 @@ public:
             gyro_bias = sum_gyro/imu_calibration_counter;
             acc_bias = sum_acc/imu_calibration_counter;
 
-
             if(imu_calibration_counter>=imu_calibration_counter_calibrated){
                 imu_calibrated = 1;
             }
@@ -778,27 +768,27 @@ public:
 
     void homing_baro(){
         //average the initial pressure
-
         baro_pressure_sum = baro_pressure_sum+pressure;
         pressure_homing_counter++;
         pressure0 = baro_pressure_sum/pressure_homing_counter;
     }
 
     void homing_mag(){
-            //average the initial magnetic field
-
-
             if(!mag_data.hasNaN()){
+                //average the initial magnetic field
                 mag_vec_inertial_sum = mag_vec_inertial_sum+mag_data;
                 mag_homing_counter++;
                 mag_vec_inertial = mag_vec_inertial_sum/mag_homing_counter;
                 mag_vec_inertial_normalised = mag_vec_inertial;
                 mag_vec_inertial_normalised.normalize();
                 set_yaw_mag(); // use data from accelerometer and magnetometer to give inital attitude before take-off
-                X.segment(20,3) = mag_vec_inertial;
+
+                // estimate the normalised magnetic field in inertial frame and put in the state
+                Eigen::Quaternion<double> attitude(X(9), X(6), X(7), X(8));
+                attitude.normalize();
+                Eigen::Matrix<double, 3, 3> rot_matrix = attitude.toRotationMatrix();
+                X.segment(20,3) = rot_matrix*mag_vec_inertial_normalised;
             }
-
-
     }
 
     void set_yaw_mag(){
@@ -812,18 +802,20 @@ public:
             // get euler angles in the NED frame from the accelerometer and magnetometer data
             double yaw =-atan2(IMU_acc_norm[0],sqrt(IMU_acc_norm[1]*IMU_acc_norm[1]+IMU_acc_norm[2]*IMU_acc_norm[2]));
             double pitch = atan2(IMU_acc_norm[1],sqrt(IMU_acc_norm[0]*IMU_acc_norm[0]+IMU_acc_norm[2]*IMU_acc_norm[2]));
-            double roll = atan2(-(IMU_mag_norm[1]*cos(pitch) - IMU_mag_norm[1]*sin(pitch)),(IMU_mag_norm[0]*cos(yaw) + IMU_mag_norm[1]*sin(pitch)*sin(yaw) + IMU_mag_norm[2]*cos(pitch)*sin(yaw))) +mag_declination;
+            double roll = atan2(-(IMU_mag_norm[0]*cos(pitch) - IMU_mag_norm[1]*sin(pitch)),(IMU_mag_norm[0]*cos(yaw) + IMU_mag_norm[1]*sin(pitch)*sin(yaw) + IMU_mag_norm[2]*cos(pitch)*sin(yaw))) +mag_declination;
+            // double roll = atan2(-(IMU_mag_norm[1]*cos(pitch) - IMU_mag_norm[1]*sin(pitch)),(IMU_mag_norm[0]*cos(yaw) + IMU_mag_norm[1]*sin(pitch)*sin(yaw) + IMU_mag_norm[2]*cos(pitch)*sin(yaw))) +mag_declination;
+
 
             // updade the current attitude estimate with the sensor data
             typedef Eigen::EulerSystem<Eigen::EULER_Z, Eigen::EULER_Y, Eigen::EULER_X> euler_system;
             typedef Eigen::EulerAngles<double, euler_system> mag_angle_type;
             mag_angle_type init_angle(roll, pitch, yaw);
             Eigen::Quaterniond q(init_angle);
+
             X.segment(6,4) = q.coeffs();
     }
 
     void homing_gps(){
-
         gps_latitude_sum = gps_latitude_sum+gps_latitude;
         gps_longitude_sum = gps_longitude_sum+gps_longitude;
         gps_alt_sum = gps_alt_sum+gps_alt;
@@ -882,10 +874,7 @@ public:
         ADw = W;
         ad_state_noise Xdot_noise;
 
-
         predictionModels->noise_dynamics(ADw,Xdot_noise,x);
-
-
 
         // fetch the jacobian wrt w of f(x,w)
         for (int i = 0; i < Xdot_noise.size(); i++) {
@@ -912,7 +901,6 @@ public:
         IMU_acc << rocket_sensor.IMU_acc.x-acc_bias(0), rocket_sensor.IMU_acc.y-acc_bias(1), rocket_sensor.IMU_acc.z-acc_bias(2);
 
         //update rotation speed to those of gyro
-        //Matrix<double, 3, 1> var_gyro_bias;var_gyro_bias << X(16),X(17),X(18);
         X.segment(10,3) = IMU_omega_b;
 
         //RK4 integration
@@ -931,6 +919,7 @@ public:
 
 		void predict_step()
 		{
+
 //             //Attitude diplay on terminal
 //            Eigen::Quaternion<double> attitude(X(9), X(6), X(7), X(8));
 //            Matrix<double,3,3> R = attitude.toRotationMatrix();
@@ -939,18 +928,19 @@ public:
 //            double beta = atan2(R(0,2),sqrt(R(0,0) * R(0,0) + R(0,1) * R(0,1)));
 //            double gamma = atan2(-R(0,1),R(0,0));
 //            std::cout << "alpha:" << alpha/DEG2RAD << " beta:" << beta/DEG2RAD << " gamma:" << gamma/DEG2RAD << "\n\n";
-
-
+//            //
 
             static double last_predict_time = ros::Time::now().toSec();
 			double dT = ros::Time::now().toSec() - last_predict_time;
             RK4(dT,X,P,X,P);
+            last_predict_time = ros::Time::now().toSec();
+
+            // normalise the magnetic vector
             Matrix<double,3,1> magnetic_vector;
             magnetic_vector =  X.segment(20,3);
             magnetic_vector.normalize();
             X.segment(20,3) = magnetic_vector;
 
-            last_predict_time = ros::Time::now().toSec();
         }
 
 
@@ -1047,8 +1037,6 @@ public:
         ad_sensor_data_mag hdot;
         mesurementModels->mesurementModelMag(ADx, hdot);
 
-
-
         //compute h(x)
         sensor_data_mag h_x;
         mesurementModels->mesurementModelMag(X, h_x);
@@ -1063,12 +1051,23 @@ public:
     }
 
 
-
 		void updateNavigation()
 		{
 
+            Eigen::Quaternion<double> attitude(X(9), X(6), X(7), X(8));
+            attitude.normalize();
+            Eigen::Matrix<double, 3, 3> rot_matrix = attitude.toRotationMatrix();
+            Matrix<double,3,1> omega_body;
+            omega_body << X(10),X(11),X(12);
+            Matrix<double,3,1> omega_inertial;
+            omega_inertial = rot_matrix*omega_body;
+
 			// Parse navigation state and publish it on the /nav_pub topic
 			rocket_utils::State rocket_state;
+            rocket_utils::ExtendedState extended_rocket_state;
+
+            rocket_state.header.stamp = ros::Time::now();
+            extended_rocket_state.header.stamp = ros::Time::now();
 
 			rocket_state.pose.position.x = X(0);
 			rocket_state.pose.position.y = X(1);
@@ -1083,50 +1082,41 @@ public:
 			rocket_state.pose.orientation.z = X(8);
 			rocket_state.pose.orientation.w = X(9);
 
-            Eigen::Quaternion<double> attitude(X(9), X(6), X(7), X(8));
-            attitude.normalize();
-            Eigen::Matrix<double, 3, 3> rot_matrix = attitude.toRotationMatrix();
-            Matrix<double,3,1> omega_body;
-            omega_body << X(10),X(11),X(12);
-            Matrix<double,3,1> omega_inertial;
-            omega_inertial = rot_matrix*omega_body;
-
 			rocket_state.twist.angular.x = omega_inertial(0);
 			rocket_state.twist.angular.y = omega_inertial(1);
 			rocket_state.twist.angular.z = omega_inertial(2);
 
 			rocket_state.propeller_mass = rocket.propellant_mass;
 
-            rocket_state.barometer_bias = X(19);
+            extended_rocket_state.state = rocket_state;
+
+            extended_rocket_state.barometer_bias = X(19);
 
             if(is_simulation){
-                rocket_state.sensor_calibration = 1; // if we are runing in simulation, consider sensors calibrated
+                extended_rocket_state.sensor_calibration = true; // if we are runing in simulation, consider sensors calibrated
             }else{
-                rocket_state.sensor_calibration = imu_calibrated;
+                extended_rocket_state.sensor_calibration = imu_calibrated;
             }
 
-			nav_pub.publish(rocket_state);
 
+            extended_rocket_state.bias_gyro.x = X(13);
+            extended_rocket_state.bias_gyro.y = X(14);
+            extended_rocket_state.bias_gyro.z = X(15);
+            extended_rocket_state.bias_acc.x = X(16);
+            extended_rocket_state.bias_acc.y = X(17);
+            extended_rocket_state.bias_acc.z = X(18);
 
-            // publish imu bias as if it was a wrench
-            geometry_msgs::Wrench imu_bias;
-            imu_bias.force.x = X(13);
-            imu_bias.force.y = X(14);
-            imu_bias.force.z = X(15);
-            imu_bias.torque.x = X(16);
-            imu_bias.torque.y = X(17);
-            imu_bias.torque.z = X(18);
-            bias_pub.publish(imu_bias);
-
-            rocket_utils::StateCovariance state_covariance;
             Matrix<double,NX,1> P_diag;
             P_diag = P.diagonal();
             std::vector<double> P_vec(P_diag.data(), P_diag.data() + NX);
             std::vector<double> P_quat(P.block(6,6,4,4).data(), P.block(6,6,4,4).data() + 4*4);
-            state_covariance.covariance = P_vec;
-            state_covariance.quat_covariance = P_quat;
-            cov_pub.publish(state_covariance);
-		}
+            extended_rocket_state.covariance = P_vec;
+            extended_rocket_state.quat_covariance = P_quat;
+
+            state_pub.publish(rocket_state);
+
+            extended_state_pub.publish(extended_rocket_state);
+        }
 };
 
 
@@ -1140,7 +1130,7 @@ int main(int argc, char **argv)
 
 	// Thread to compute navigation state. Duration defines interval time in seconds
 	ros::Timer control_thread = nh.createTimer(ros::Duration(navigationNode.dt_ros),
-	[&](const ros::TimerEvent&) 
+	[&](const ros::TimerEvent&)
 	{
 		navigationNode.updateNavigation();
 	});
