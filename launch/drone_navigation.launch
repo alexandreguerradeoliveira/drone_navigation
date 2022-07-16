@@ -1,0 +1,10 @@
+<launch>
+  <arg name="is_simulation" default="false"/>
+
+  <group ns="navigation">
+    <rosparam file="$(find drone_navigation)/config/ekf_parameters.yaml"/>
+    <param name="is_simulation" value="$(arg is_simulation)"/>
+  </group>
+
+  <node name="rocket_navigation_ekf" pkg="drone_navigation" type="rocket_navigation_ekf" output="screen"/>
+</launch>

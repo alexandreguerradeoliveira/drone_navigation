@@ -54,7 +54,6 @@ using namespace Eigen;
 
 class NavigationNode {
 	public:
-
         double dt_ros = 0.05; // [s] time delay between two publishes of the message constaining the kalman state (/kalman_rocket_state)
         bool is_simulation; // 1=runs in simulation (SIL), 0=runs on drone
         bool use_gps; // 0=use optitrack, 1=use px4 gps
@@ -420,8 +419,7 @@ public:
 
 			Eigen::Quaterniond q(init_angle);
 
-            rocket_fsm.state_machine = "Calibration";
-
+            rocket_fsm.state_machine = rocket_utils::FSM::CALIBRATION;
             P.setZero(); // no error in the initial state
 
             z_baro.setZero();
@@ -467,7 +465,7 @@ public:
 
             if(is_simulation){
                 // Subscribe to sensor for kalman correction
-                sensor_sub = nh.subscribe("/sensor_pub", 1, &NavigationNode::sensorCallback, this);
+                sensor_sub = nh.subscribe("/simu_sensor_pub", 1, &NavigationNode::sensorCallback, this);
 
                 // Subscribe to state to fake GPS
                 gps_sub = nh.subscribe("/rocket_state", 1, &NavigationNode::gpsCallback, this);
@@ -521,19 +519,20 @@ public:
             rocket_sensor.IMU_acc = sensor->linear_acceleration;
             rocket_sensor.IMU_gyro = sensor->angular_velocity;
 
-            if(rocket_fsm.state_machine.compare("Calibration") == 0)
+            if(rocket_fsm.state_machine == rocket_utils::FSM::CALIBRATION)
             {
                 calibrate_imu();
             }
 
-            if(rocket_fsm.state_machine.compare("Idle") == 0)
+            if(rocket_fsm.state_machine == rocket_utils::FSM::IDLE)
             {
                 if(predict_on_idle){
                     predict_step();
                 }
             }
 
-            if(rocket_fsm.state_machine.compare("Coast") == 0||rocket_fsm.state_machine.compare("Launch") == 0||rocket_fsm.state_machine.compare("Rail") == 0)
+            if(rocket_fsm.state_machine != rocket_utils::FSM::CALIBRATION
+               && rocket_fsm.state_machine != rocket_utils::FSM::IDLE)
             {
                 predict_step();
             }
@@ -550,14 +549,14 @@ public:
             mag_data_normalized.normalize();
 
             if(use_gps){
-                if(rocket_fsm.state_machine.compare("Calibration") == 0)
+                if(rocket_fsm.state_machine == rocket_utils::FSM::CALIBRATION)
                 {
                     homing_mag();
                 }
 
                 if(use_magnetometer){
                     if(imu_calibrated==1){
-                        if(rocket_fsm.state_machine.compare("Idle") == 0)
+                        if(rocket_fsm.state_machine == rocket_utils::FSM::IDLE)
                         {
                             if(predict_on_idle){
                                 if((!mag_data_normalized.hasNaN())&&(!mag_vec_inertial_normalised.hasNaN())){
@@ -567,7 +566,8 @@ public:
                             }
                         }
 
-                        if(rocket_fsm.state_machine.compare("Coast") == 0||rocket_fsm.state_machine.compare("Launch") == 0||rocket_fsm.state_machine.compare("Rail") == 0)
+                        if(rocket_fsm.state_machine != rocket_utils::FSM::CALIBRATION
+                           && rocket_fsm.state_machine != rocket_utils::FSM::IDLE)
                         {
                             if((!mag_data_normalized.hasNaN())&&(!mag_vec_inertial_normalised.hasNaN())){
                                 predict_step();
@@ -589,13 +589,13 @@ public:
             z_baro(0) =  (pressure0 - pressure)/(rho0*g0);
 
 
-            if(rocket_fsm.state_machine.compare("Calibration") == 0)
+            if(rocket_fsm.state_machine == rocket_utils::FSM::CALIBRATION)
             {
                 homing_baro();
             }
 
             if(imu_calibrated==1){
-                if(rocket_fsm.state_machine.compare("Idle") == 0)
+                if(rocket_fsm.state_machine == rocket_utils::FSM::IDLE)
                 {
                     if(predict_on_idle){
                         if(!z_baro.hasNaN()){
@@ -605,7 +605,8 @@ public:
                     }
                 }
 
-                if(rocket_fsm.state_machine.compare("Coast") == 0||rocket_fsm.state_machine.compare("Launch") == 0||rocket_fsm.state_machine.compare("Rail") == 0)
+                if(rocket_fsm.state_machine != rocket_utils::FSM::CALIBRATION
+                   && rocket_fsm.state_machine != rocket_utils::FSM::IDLE)
                 {
                     if(!z_baro.hasNaN()){
                         predict_step();
@@ -630,7 +631,7 @@ public:
             R_gps(2,2) = gps->position_covariance[8];
 
 
-            if(rocket_fsm.state_machine.compare("Calibration") == 0||gps_started==0)
+            if(rocket_fsm.state_machine == rocket_utils::FSM::CALIBRATION || gps_started==0)
             {
                 homing_gps();
             }
@@ -642,7 +643,7 @@ public:
             gps_pos << gps_x,gps_y,gps_z;
 
             if((gps_started==1)&&(imu_calibrated==1)){
-                if(rocket_fsm.state_machine.compare("Idle") == 0)
+                if(rocket_fsm.state_machine == rocket_utils::FSM::IDLE)
                 {
                     if(predict_on_idle){
                         if(!gps_pos.hasNaN()){
@@ -653,7 +654,8 @@ public:
                 }
 
 
-                if(rocket_fsm.state_machine.compare("Coast") == 0||rocket_fsm.state_machine.compare("Launch") == 0||rocket_fsm.state_machine.compare("Rail") == 0)
+                if(rocket_fsm.state_machine != rocket_utils::FSM::CALIBRATION
+                   && rocket_fsm.state_machine != rocket_utils::FSM::IDLE)
                 {
                     if(!gps_pos.hasNaN()){
                         predict_step();
@@ -678,7 +680,8 @@ public:
             mag_data << rocket_sensor.IMU_mag.x,rocket_sensor.IMU_mag.y,rocket_sensor.IMU_mag.z;
             gyro_data << rocket_sensor.IMU_gyro.x,rocket_sensor.IMU_gyro.y,rocket_sensor.IMU_gyro.z;
 
-            if(rocket_fsm.state_machine.compare("Coast") == 0||rocket_fsm.state_machine.compare("Launch") == 0||rocket_fsm.state_machine.compare("Rail") == 0)
+            if(rocket_fsm.state_machine != rocket_utils::FSM::CALIBRATION
+                && rocket_fsm.state_machine != rocket_utils::FSM::IDLE)
             {
                 predict_step();
                 update_step_baro(z_baro);
@@ -696,7 +699,7 @@ public:
                 std::cout << "optitrack fusion started\n\n";
             }
 
-            if(rocket_fsm.state_machine.compare("Idle") == 0)
+            if(rocket_fsm.state_machine == rocket_utils::FSM::IDLE)
             {
                 if(predict_on_idle){
                     if(!optitrack_data.hasNaN()) {
@@ -706,7 +709,8 @@ public:
                 }
             }
 
-            if(rocket_fsm.state_machine.compare("Coast") == 0||rocket_fsm.state_machine.compare("Launch") == 0||rocket_fsm.state_machine.compare("Rail") == 0)
+            if(rocket_fsm.state_machine != rocket_utils::FSM::CALIBRATION
+               && rocket_fsm.state_machine != rocket_utils::FSM::IDLE)
             {
                 if(!optitrack_data.hasNaN()) {
                     predict_step();
@@ -732,7 +736,8 @@ public:
                         std::normal_distribution<double> gps_xy_noise(0.0, gps_noise);
                         gps_pos << gps_pos(0) + gps_xy_noise(generator),gps_pos(1) + gps_xy_noise(generator),gps_pos(2) + gps_xy_noise(generator);
 
-                        if(rocket_fsm.state_machine.compare("Coast") == 0||rocket_fsm.state_machine.compare("Launch") == 0||rocket_fsm.state_machine.compare("Rail") == 0){
+                        if(rocket_fsm.state_machine != rocket_utils::FSM::CALIBRATION
+                           && rocket_fsm.state_machine != rocket_utils::FSM::IDLE){
                             predict_step();
                             update_step_gps(gps_pos);
                         }
@@ -759,7 +764,7 @@ public:
             acc_bias = sum_acc/imu_calibration_counter;
 
             if(imu_calibration_counter>=imu_calibration_counter_calibrated){
-                imu_calibrated = 1;
+                imu_calibrated = true;
             }
 
             std::cout << "calibrating IMU: steps: " << imu_calibration_counter << "/" << imu_calibration_counter_calibrated << "\n\n";
@@ -1093,9 +1098,9 @@ public:
             extended_rocket_state.barometer_bias = X(19);
 
             if(is_simulation){
-                extended_rocket_state.sensor_calibration = true; // if we are runing in simulation, consider sensors calibrated
+                extended_rocket_state.is_calibrated = true; // if we are runing in simulation, consider sensors calibrated
             }else{
-                extended_rocket_state.sensor_calibration = imu_calibrated;
+                extended_rocket_state.is_calibrated = imu_calibrated;
             }
 
 

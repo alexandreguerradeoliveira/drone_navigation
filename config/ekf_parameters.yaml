@@ -116,4 +116,4 @@ R_optitrack_z: 0.000000001 #optitrack covariance [m^2]
 
 ## fake gps parameters (this is only used in simulation)
 fake_gps_freq: 20
-fake_gps_variance: 0.8
+fake_gps_variance: 0.2
